@@ -11,26 +11,51 @@ const processingMessages = new WeakSet(); // 중복 처리 방지
 // 설정 불러오기
 async function getSettings() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation'], (result) => {
+    chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey'], (result) => {
       resolve({
         targetLang:               result.targetLang    || 'ko',
         outLang:                  result.outLang       || 'en',
         autoTranslate:            result.autoTranslate !== false,
-        showOutgoingTranslation:  result.showOutgoingTranslation === true
+        showOutgoingTranslation:  result.showOutgoingTranslation === true,
+        cloudApiKey:              result.cloudApiKey   || ''
       });
     });
   });
 }
 
-// Google 번역 (무료 API) - 감지된 언어코드도 함께 반환
-async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
+// Google Cloud Translation API (공식 - API 키 필요)
+async function googleTranslateCloud(text, targetLang, sourceLang, apiKey) {
+  const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: text, target: targetLang, source: sourceLang === 'auto' ? undefined : sourceLang, format: 'text' })
+  });
+  if (!response.ok) throw new Error('Cloud 번역 요청 실패');
+  const data = await response.json();
+  const translated = data.data.translations[0].translatedText;
+  const detectedLang = data.data.translations[0].detectedSourceLanguage || sourceLang;
+  return { translated, detectedLang };
+}
+
+// Google 번역 (무료 API 폴백) - 감지된 언어코드도 함께 반환
+async function googleTranslateFree(text, targetLang = 'en', sourceLang = 'auto') {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error('번역 요청 실패');
   const data = await response.json();
   const translated = data[0].map(chunk => chunk[0]).join('');
-  const detectedLang = data[2] || 'auto'; // 감지된 원본 언어
+  const detectedLang = data[2] || 'auto';
   return { translated, detectedLang };
+}
+
+// 번역 통합 함수: API 키 있으면 공식, 없으면 무료 사용
+async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
+  const settings = await getSettings();
+  if (settings.cloudApiKey) {
+    return googleTranslateCloud(text, targetLang, sourceLang, settings.cloudApiKey);
+  }
+  return googleTranslateFree(text, targetLang, sourceLang);
 }
 
 // Alt+T 수동 번역 (전송 없이 텍스트만 교체)

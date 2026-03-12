@@ -6,12 +6,13 @@
 // content.js의 getSettings 인라인
 function getSettings() {
   return new Promise(function(resolve) {
-    chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation'], function(result) {
+    chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey'], function(result) {
       resolve({
         targetLang:               result.targetLang    || 'ko',
         outLang:                  result.outLang       || 'en',
         autoTranslate:            result.autoTranslate !== false,
-        showOutgoingTranslation:  result.showOutgoingTranslation === true
+        showOutgoingTranslation:  result.showOutgoingTranslation === true,
+        cloudApiKey:              result.cloudApiKey   || ''
       });
     });
   });
@@ -45,12 +46,18 @@ describe('getSettings() - 기본값', () => {
     expect(settings.showOutgoingTranslation).toBe(false);
   });
 
-  test('설정 객체에 네 가지 키가 모두 존재', async () => {
+  test('저장된 값 없으면 cloudApiKey 기본값은 빈 문자열', async () => {
+    const settings = await getSettings();
+    expect(settings.cloudApiKey).toBe('');
+  });
+
+  test('설정 객체에 다섯 가지 키가 모두 존재', async () => {
     const settings = await getSettings();
     expect(settings).toHaveProperty('targetLang');
     expect(settings).toHaveProperty('outLang');
     expect(settings).toHaveProperty('autoTranslate');
     expect(settings).toHaveProperty('showOutgoingTranslation');
+    expect(settings).toHaveProperty('cloudApiKey');
   });
 });
 
@@ -205,6 +212,77 @@ describe('getSettings() - autoTranslate 엣지 케이스', () => {
     chrome.storage.local.clear();
     var s2 = await getSettings();
     expect(s2.autoTranslate).toBe(true);
+  });
+});
+
+// ── cloudApiKey 테스트 ───────────────────────────────
+
+describe('getSettings() - cloudApiKey', () => {
+
+  beforeEach(() => {
+    chrome.storage.local.clear();
+  });
+
+  test('저장 안 하면 cloudApiKey 기본값은 빈 문자열', async () => {
+    const settings = await getSettings();
+    expect(settings.cloudApiKey).toBe('');
+  });
+
+  test('API 키 저장 후 불러오기', async () => {
+    chrome.storage.local.set({ cloudApiKey: 'AIzaSyABCDEFGHIJKLMNOP' });
+    const settings = await getSettings();
+    expect(settings.cloudApiKey).toBe('AIzaSyABCDEFGHIJKLMNOP');
+  });
+
+  test('API 키 저장 후 삭제하면 빈 문자열', async () => {
+    chrome.storage.local.set({ cloudApiKey: 'AIzaSyABCDEFGHIJKLMNOP' });
+    var s1 = await getSettings();
+    expect(s1.cloudApiKey).toBe('AIzaSyABCDEFGHIJKLMNOP');
+
+    chrome.storage.local.clear();
+    var s2 = await getSettings();
+    expect(s2.cloudApiKey).toBe('');
+  });
+
+  test('API 키 변경 후 즉시 반영', async () => {
+    chrome.storage.local.set({ cloudApiKey: 'KEY_A' });
+    var s1 = await getSettings();
+    expect(s1.cloudApiKey).toBe('KEY_A');
+
+    chrome.storage.local.set({ cloudApiKey: 'KEY_B' });
+    var s2 = await getSettings();
+    expect(s2.cloudApiKey).toBe('KEY_B');
+  });
+
+  test('cloudApiKey가 있으면 truthy 평가', async () => {
+    chrome.storage.local.set({ cloudApiKey: 'AIzaSyABCDEFGHIJKLMNOP' });
+    const settings = await getSettings();
+    expect(settings.cloudApiKey).toBeTruthy();
+  });
+
+  test('cloudApiKey가 없으면 falsy 평가', async () => {
+    const settings = await getSettings();
+    expect(settings.cloudApiKey).toBeFalsy();
+  });
+
+  test('공백만 있는 API 키는 저장된 그대로 반환 (trim은 popup.js 책임)', async () => {
+    chrome.storage.local.set({ cloudApiKey: '  ' });
+    const settings = await getSettings();
+    expect(settings.cloudApiKey).toBe('  ');
+  });
+
+  test('모든 설정과 함께 API 키 저장/불러오기', async () => {
+    chrome.storage.local.set({
+      targetLang: 'ja', outLang: 'fr',
+      autoTranslate: false, showOutgoingTranslation: true,
+      cloudApiKey: 'AIzaSyTEST'
+    });
+    const settings = await getSettings();
+    expect(settings.targetLang).toBe('ja');
+    expect(settings.outLang).toBe('fr');
+    expect(settings.autoTranslate).toBe(false);
+    expect(settings.showOutgoingTranslation).toBe(true);
+    expect(settings.cloudApiKey).toBe('AIzaSyTEST');
   });
 });
 

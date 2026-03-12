@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Google Chat 한→영 번역기",
+  "name": "GChat Auto Translator",
   "version": "1.0.0",
-  "description": "Google Chat에서 한글을 입력하면 Claude API로 영문 번역 후 전송",
+  "description": "Auto-translate messages in Google Chat. Type in your language, send in theirs. Incoming messages are translated instantly.",
   "permissions": [
     "storage"
   ],
   "host_permissions": [
     "https://chat.google.com/*",
     "https://mail.google.com/*",
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://translation.googleapis.com/*"
   ],
   "content_scripts": [
     {

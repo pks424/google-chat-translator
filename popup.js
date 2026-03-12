@@ -2,21 +2,21 @@ const outLangSelect              = document.getElementById('outLang');
 const targetLangSelect           = document.getElementById('targetLang');
 const autoTranslateChk           = document.getElementById('autoTranslate');
 const showOutgoingTranslationChk = document.getElementById('showOutgoingTranslation');
+const cloudApiKeyInput           = document.getElementById('cloudApiKey');
 const saveBtn                    = document.getElementById('saveBtn');
 const statusEl                   = document.getElementById('status');
 const setupBanner                = document.getElementById('setupBanner');
 
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'initialized'], (result) => {
-  // 최초 설치 여부 확인 → 안내 배너 표시
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
-
-  outLangSelect.value    = result.outLang    || 'en';
-  targetLangSelect.value = result.targetLang || 'ko';
-  autoTranslateChk.checked           = result.autoTranslate !== false;
-  showOutgoingTranslationChk.checked  = result.showOutgoingTranslation === true;
+  outLangSelect.value              = result.outLang    || 'en';
+  targetLangSelect.value           = result.targetLang || 'ko';
+  autoTranslateChk.checked         = result.autoTranslate !== false;
+  showOutgoingTranslationChk.checked = result.showOutgoingTranslation === true;
+  cloudApiKeyInput.value           = result.cloudApiKey || '';
 });
 
 // 저장 버튼
@@ -26,6 +26,7 @@ saveBtn.addEventListener('click', () => {
     targetLang:               targetLangSelect.value,
     autoTranslate:            autoTranslateChk.checked,
     showOutgoingTranslation:  showOutgoingTranslationChk.checked,
+    cloudApiKey:              cloudApiKeyInput.value.trim(),
     initialized:              true
   };
 
