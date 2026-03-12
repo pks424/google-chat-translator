@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Chat 번역기 설정</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 340px;
+      font-family: 'Google Sans', 'Noto Sans KR', Arial, sans-serif;
+      font-size: 14px;
+      color: #202124;
+      background: #fff;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 16px;
+    }
+    .header h1 { font-size: 15px; font-weight: 600; }
+    .header .subtitle { font-size: 11px; opacity: 0.85; margin-top: 3px; }
+
+    /* 최초 설정 안내 배너 */
+    .setup-banner {
+      background: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #1967d2;
+      line-height: 1.5;
+      display: none;
+    }
+    .setup-banner.visible { display: block; }
+
+    .content { padding: 16px; }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      margin-top: 16px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    .field { margin-bottom: 12px; }
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #3c4043;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    label .icon { font-size: 14px; }
+
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #202124;
+      outline: none;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      appearance: auto;
+    }
+    select:focus { border-color: #1a73e8; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .toggle-row .label-text { font-size: 13px; color: #202124; }
+    .toggle-row .label-sub { font-size: 11px; color: #5f6368; margin-top: 2px; }
+
+    /* 토글 스위치 */
+    .switch { position: relative; width: 38px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #dadce0; border-radius: 22px;
+      transition: .3s;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 16px; width: 16px;
+      left: 3px; bottom: 3px;
+      background: white; border-radius: 50%;
+      transition: .3s;
+    }
+    input:checked + .slider { background: #1a73e8; }
+    input:checked + .slider:before { transform: translateX(16px); }
+
+    .divider { border: none; border-top: 1px solid #e8eaed; margin: 14px 0; }
+
+    .btn-save {
+      width: 100%;
+      padding: 10px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-save:hover { background: #1557b0; }
+
+    .status {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+      text-align: center;
+    }
+    .status.success { background: #e6f4ea; color: #137333; display: block; }
+    .status.error   { background: #fce8e6; color: #c5221f; display: block; }
+
+    .shortcut-box {
+      background: #f8f9fa;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #5f6368;
+      line-height: 1.7;
+    }
+    kbd {
+      background: #e8eaed;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #202124;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🌐 Google Chat 번역기</h1>
+    <div class="subtitle">Google 번역 기반 자동 번역 확장 프로그램</div>
+  </div>
+
+  <!-- 최초 설치 시 안내 배너 -->
+  <div class="setup-banner" id="setupBanner">
+    ✨ 처음 사용하시나요? 아래 언어 설정 후 <strong>저장</strong>을 눌러주세요!
+  </div>
+
+  <div class="content">
+
+    <div class="section-title">📤 발신 메시지 설정</div>
+    <div class="toggle-row">
+      <div>
+        <div class="label-text">내가 보낸 메시지도 번역해서 보여주기</div>
+        <div class="label-sub">전송된 메시지 아래에 원문 언어로 번역 표시</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="showOutgoingTranslation">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="field">
+      <label><span class="icon">✏️</span> 내가 입력한 언어를 → 어떤 언어로 번역하여 전송할까요?</label>
+      <select id="outLang">
+        <option value="en">영어 (English)</option>
+        <option value="ja">일본어 (日本語)</option>
+        <option value="zh-CN">중국어 간체 (简体中文)</option>
+        <option value="zh-TW">중국어 번체 (繁體中文)</option>
+        <option value="de">독일어 (Deutsch)</option>
+        <option value="fr">프랑스어 (Français)</option>
+        <option value="es">스페인어 (Español)</option>
+        <option value="ko">한국어 (번역 안 함)</option>
+      </select>
+    </div>
+
+    <hr class="divider">
+
+    <div class="section-title">📥 수신 메시지 설정</div>
+    <div class="toggle-row">
+      <div>
+        <div class="label-text">상대방 메시지 자동 번역</div>
+        <div class="label-sub">새 메시지를 받으면 자동으로 번역하여 표시</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoTranslate" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="field">
+      <label><span class="icon">👁️</span> 상대방 메시지를 → 어떤 언어로 번역하여 보여줄까요?</label>
+      <select id="targetLang">
+        <option value="ko">한국어</option>
+        <option value="en">영어 (English)</option>
+        <option value="ja">일본어 (日本語)</option>
+        <option value="zh-CN">중국어 간체 (简体中文)</option>
+        <option value="zh-TW">중국어 번체 (繁體中文)</option>
+        <option value="de">독일어 (Deutsch)</option>
+        <option value="fr">프랑스어 (Français)</option>
+        <option value="es">스페인어 (Español)</option>
+      </select>
+    </div>
+
+    <hr class="divider">
+
+    <button class="btn-save" id="saveBtn">저장하기</button>
+    <div class="status" id="status"></div>
+
+    <hr class="divider">
+
+    <div class="shortcut-box">
+      <strong>동작 방식</strong><br>
+      • 메시지 입력 후 <kbd>Enter</kbd> → 자동 번역 후 전송<br>
+      • 상대방 메시지 → 수신 언어로 자동 번역 표시<br>
+      • 내 메시지 → 옵션 ON 시 원문 언어로 번역 표시
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

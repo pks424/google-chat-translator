@@ -1,0 +1,18 @@
+
+/* ── 수신 메시지 번역 뱃지 ── */
+.gct-translation {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: #e8f0fe;
+  border-left: 3px solid #1a73e8;
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+  color: #1a1a1a;
+  line-height: 1.5;
+  font-family: 'Google Sans', sans-serif;
+}
+.gct-translation-icon {
+  margin-right: 4px;
+  font-style: normal;
+}

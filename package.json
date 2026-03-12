@@ -1,0 +1,23 @@
+{
+  "name": "google-chat-translator",
+  "version": "1.0.0",
+  "description": "Google Chat 자동 번역 Chrome 확장 프로그램 테스트",
+  "scripts": {
+    "test": "jest --verbose",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^26.6.3",
+    "jest-environment-jsdom": "^26.6.2"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFiles": [
+      "./tests/setup.js"
+    ],
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ]
+  }
+}
