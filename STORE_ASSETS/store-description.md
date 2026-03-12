@@ -68,15 +68,14 @@ google chat, translate, translator, auto translate, chat translation, language, 
 ---
 
 ## 개인정보처리방침 URL
-`privacy-policy.html` 파일을 GitHub Pages에 호스팅 후 URL 등록
-예: `https://<username>.github.io/google-chat-translator/privacy-policy.html`
+https://pks424.github.io/google-chat-translator/privacy-policy.html
 
 ---
 
 ## 스토어 등록 체크리스트
 
 - [ ] 아이콘 확인 (16px, 48px, 128px PNG)
-- [ ] 스크린샷 최소 1장 (최대 5장) 업로드
+- [ ] 스크린샷 업로드 (STORE_ASSETS/screenshot1~3.html → Chrome에서 열어 1280×800 캡처)
 - [ ] 개인정보처리방침 URL 등록
 - [ ] 개발자 등록비 $5 결제 (최초 1회)
 - [ ] 검토 기간 대기 (보통 1-3 영업일)

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1280px; height: 800px; overflow: hidden;
+      font-family: 'Google Sans', Arial, sans-serif;
+      background: #f1f3f4;
+      display: flex;
+    }
+    .sidebar {
+      width: 260px; height: 800px;
+      background: #fff;
+      border-right: 1px solid #e0e0e0;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 16px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .sidebar-header .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 16px;
+    }
+    .sidebar-header .title { font-size: 18px; font-weight: 600; color: #202124; }
+    .search-bar {
+      margin: 12px; padding: 8px 12px;
+      background: #f1f3f4; border-radius: 20px;
+      font-size: 14px; color: #5f6368;
+    }
+    .dm-section { padding: 8px 16px; font-size: 12px; font-weight: 600; color: #5f6368; margin-top: 8px; }
+    .dm-item {
+      padding: 10px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer;
+    }
+    .dm-item.active { background: #e8f0fe; border-radius: 0 20px 20px 0; margin-right: 8px; }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 600; color: white; flex-shrink: 0;
+    }
+    .dm-info .name { font-size: 14px; font-weight: 500; color: #202124; }
+    .dm-info .preview { font-size: 12px; color: #5f6368; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 160px; }
+
+    .chat-main { flex: 1; display: flex; flex-direction: column; height: 800px; }
+    .chat-header {
+      padding: 14px 20px; background: white;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chat-header-left { display: flex; align-items: center; gap: 12px; }
+    .chat-header .name { font-size: 16px; font-weight: 600; color: #202124; }
+    .chat-header .status { font-size: 12px; color: #0f9d58; }
+
+    .messages {
+      flex: 1; overflow: hidden; padding: 20px;
+      display: flex; flex-direction: column; gap: 14px;
+      background: #fff;
+    }
+    .date-divider {
+      text-align: center; font-size: 12px; color: #5f6368;
+      display: flex; align-items: center; gap: 8px; margin: 2px 0;
+    }
+    .date-divider::before, .date-divider::after {
+      content: ''; flex: 1; height: 1px; background: #e0e0e0;
+    }
+    .msg-row { display: flex; gap: 12px; align-items: flex-start; max-width: 760px; }
+    .msg-row.mine { flex-direction: row-reverse; align-self: flex-end; }
+    .msg-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; color: white; flex-shrink: 0;
+    }
+    .msg-body {}
+    .msg-meta { font-size: 11px; color: #5f6368; margin-bottom: 4px; }
+    .msg-row.mine .msg-meta { text-align: right; }
+    .bubble {
+      background: #f1f3f4; border-radius: 0 16px 16px 16px;
+      padding: 10px 14px; font-size: 14px; color: #202124;
+      line-height: 1.5; display: inline-block; max-width: 620px;
+    }
+    .msg-row.mine .bubble {
+      background: #e8f0fe; border-radius: 16px 0 16px 16px;
+    }
+    .gct-translation {
+      margin-top: 5px; padding: 6px 10px;
+      background: #f0f7ff; border-left: 3px solid #1a73e8;
+      border-radius: 0 8px 8px 0;
+      font-size: 12px; color: #1967d2; line-height: 1.5; max-width: 620px;
+    }
+    .gct-icon { font-size: 13px; margin-right: 2px; }
+
+    .input-area {
+      padding: 12px 20px; background: white;
+      border-top: 1px solid #e0e0e0;
+    }
+    .input-box {
+      border: 1px solid #dadce0; border-radius: 24px;
+      padding: 10px 16px; font-size: 14px;
+      display: flex; align-items: center; gap: 10px;
+      background: #f8f9fa;
+    }
+    .input-text { color: #202124; flex: 1; }
+    .input-hint { font-size: 11px; color: #9aa0a6; margin-top: 6px; padding-left: 16px; }
+    .input-icons { display: flex; gap: 8px; color: #5f6368; font-size: 18px; }
+
+    .ext-badge {
+      position: fixed; top: 12px; right: 12px;
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white; border-radius: 20px;
+      padding: 6px 14px; font-size: 12px; font-weight: 500;
+      box-shadow: 0 2px 8px rgba(26,115,232,0.4);
+    }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">💬</div>
+    <div class="title">Chat</div>
+  </div>
+  <div class="search-bar">🔍 검색</div>
+  <div class="dm-section">다이렉트 메시지</div>
+  <div class="dm-item">
+    <div class="avatar" style="background:#1a73e8">田</div>
+    <div class="dm-info">
+      <div class="name">Tanaka Hiroshi</div>
+      <div class="preview">ありがとうございます！</div>
+    </div>
+  </div>
+  <div class="dm-item active">
+    <div class="avatar" style="background:#e53935">W</div>
+    <div class="dm-info">
+      <div class="name">Wang Fang</div>
+      <div class="preview">好的，我明白了</div>
+    </div>
+  </div>
+  <div class="dm-item">
+    <div class="avatar" style="background:#f4511e">S</div>
+    <div class="dm-info">
+      <div class="name">Sarah Johnson</div>
+      <div class="preview">Let's catch up soon!</div>
+    </div>
+  </div>
+  <div class="dm-item">
+    <div class="avatar" style="background:#0f9d58">P</div>
+    <div class="dm-info">
+      <div class="name">Pedro Alves</div>
+      <div class="preview">Obrigado pela ajuda!</div>
+    </div>
+  </div>
+</div>
+
+<div class="chat-main">
+  <div class="chat-header">
+    <div class="chat-header-left">
+      <div style="width:40px;height:40px;border-radius:50%;background:#e53935;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:white;">W</div>
+      <div>
+        <div class="name">Wang Fang</div>
+        <div class="status">● 온라인</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="messages">
+    <div class="date-divider">오늘</div>
+
+    <div class="msg-row">
+      <div class="msg-avatar" style="background:#e53935">W</div>
+      <div class="msg-body">
+        <div class="msg-meta">Wang Fang · 오후 2:10</div>
+        <div class="bubble">你好！关于这个项目，我们需要在本周五之前提交报告。</div>
+        <div class="gct-translation">
+          <span class="gct-icon">🌐</span> 안녕하세요! 이 프로젝트와 관련하여 이번 주 금요일까지 보고서를 제출해야 합니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="msg-row mine">
+      <div class="msg-avatar" style="background:#34a853">나</div>
+      <div class="msg-body">
+        <div class="msg-meta">나 · 오후 2:13</div>
+        <div class="bubble">好的，我明白了。我会准时完成的，请放心。</div>
+        <div class="gct-translation" style="text-align:left;margin-left:auto;border-left:3px solid #34a853;background:#f0fdf4;color:#137333;">
+          <span class="gct-icon">🌐</span> 네, 알겠습니다. 제시간에 완료하겠습니다, 안심하세요.
+        </div>
+      </div>
+    </div>
+
+    <div class="msg-row">
+      <div class="msg-avatar" style="background:#e53935">W</div>
+      <div class="msg-body">
+        <div class="msg-meta">Wang Fang · 오후 2:15</div>
+        <div class="bubble">太好了！如果有任何问题，请随时告诉我。我们一起解决。</div>
+        <div class="gct-translation">
+          <span class="gct-icon">🌐</span> 훌륭합니다! 문제가 있으면 언제든지 알려주세요. 함께 해결해 나가겠습니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="msg-row mine">
+      <div class="msg-avatar" style="background:#34a853">나</div>
+      <div class="msg-body">
+        <div class="msg-meta">나 · 오후 2:18</div>
+        <div class="bubble">非常感谢您的支持！期待与您合作。</div>
+        <div class="gct-translation" style="text-align:left;margin-left:auto;border-left:3px solid #34a853;background:#f0fdf4;color:#137333;">
+          <span class="gct-icon">🌐</span> 지원해 주셔서 정말 감사합니다! 함께 일하기를 기대합니다.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="input-area">
+    <div class="input-box">
+      <span class="input-text">한국어로 입력하면 중국어로 자동 번역되어 전송됩니다</span>
+      <div class="input-icons">😊 📎</div>
+    </div>
+    <div class="input-hint">💡 Enter → 자동 번역 후 전송 &nbsp;|&nbsp; Alt+T → 번역만 미리보기</div>
+  </div>
+</div>
+
+<div class="ext-badge">🌐 GChat 번역기 활성</div>
+
+</body>
+</html>
