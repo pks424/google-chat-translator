@@ -1,7 +1,6 @@
-# Google Chat 번역기 Chrome 확장 프로그램
+# GChat Auto Translator
 
 Google Chat에서 외국어로 대화할 때 자동으로 번역해주는 Chrome 확장 프로그램입니다.
-별도 API 키 없이 Google 번역(무료)을 사용합니다.
 
 ---
 
@@ -9,22 +8,42 @@ Google Chat에서 외국어로 대화할 때 자동으로 번역해주는 Chrome
 
 | 기능 | 설명 |
 |------|------|
-| **발신 자동 번역** | 한글로 입력 후 Enter를 누르면 자동으로 영어(또는 설정 언어)로 번역하여 전송 |
+| **발신 자동 번역** | 한글로 입력 후 Enter를 누르면 자동으로 설정 언어로 번역하여 전송 |
 | **수신 자동 번역** | 상대방 메시지를 받으면 원문 아래에 한국어 번역을 자동으로 표시 |
 | **언어 자동 감지** | 목표 언어로 이미 작성된 경우 번역 건너뜀 |
 | **발신 수동 번역** | `Alt + T` 단축키로 전송 없이 입력창 텍스트만 번역 |
+| **AI 번역 엔진 지원** | Gemini, Claude, ChatGPT 등 AI 기반 고품질 번역 선택 가능 |
+| **Gmail 내장 Chat 지원** | `mail.google.com` 내장 Chat에서도 동작 |
+| **토스트 알림** | API 사용량 초과 등 오류 시 화면 상단에 알림 표시 |
+
+---
+
+## 지원 번역 엔진
+
+| 엔진 | API 키 | 비용 | 특징 |
+|------|--------|------|------|
+| **Google 번역 (무료)** | 불필요 | 무료 | 기본값, 빠른 속도 |
+| **Google Cloud Translation** | 필요 | 유료 | 공식 API, 안정적 |
+| **Gemini (Google AI)** | 필요 | 무료 티어 있음 | AI 기반, 자연스러운 번역 |
+| **Claude (Anthropic)** | 필요 | 유료 | 고품질 AI 번역 |
+| **ChatGPT (OpenAI)** | 필요 | 유료 | GPT-4o-mini 기반 |
 
 ---
 
 ## 설치 방법
 
-### 1단계: 파일 다운로드
+### Chrome Web Store (권장)
+> 심사 후 등록 예정
 
-프로젝트 폴더(`google-chat-translator`)를 PC의 원하는 위치에 저장합니다.
+### 수동 설치 (개발자 모드)
 
-> **주의:** `node_modules` 폴더는 확장 프로그램 동작에 불필요합니다. 설치 시 포함되지 않아도 됩니다.
+1. 이 저장소를 다운로드하거나 `git clone`
+2. Chrome 주소창에 `chrome://extensions` 입력
+3. 우측 상단 **개발자 모드** 토글 ON
+4. **압축 해제된 확장 프로그램을 로드합니다** 클릭
+5. 다운로드한 폴더 선택
 
-필요한 파일 목록:
+필요한 파일:
 ```
 google-chat-translator/
 ├── manifest.json
@@ -40,77 +59,43 @@ google-chat-translator/
 
 ---
 
-### 2단계: Chrome에 확장 프로그램 설치
+## 초기 설정
 
-1. Chrome 주소창에 `chrome://extensions` 입력 후 Enter
-2. 우측 상단 **개발자 모드** 토글을 켭니다
-
-   ![개발자 모드](https://i.imgur.com/placeholder.png)
-
-3. **압축 해제된 확장 프로그램을 로드합니다** 버튼 클릭
-4. 저장한 `google-chat-translator` 폴더 선택
-5. 확장 프로그램 목록에 **Google Chat 번역기** 가 나타나면 설치 완료
-
----
-
-### 3단계: 초기 설정
-
-1. Chrome 우측 상단 퍼즐 아이콘(🧩) 클릭 → **Google Chat 번역기** 클릭
-2. 설정 팝업이 열립니다
-
-**발신 메시지 설정**
-- 내가 입력한 텍스트를 어떤 언어로 번역하여 전송할지 선택
-- 기본값: 영어 (English)
-
-**수신 메시지 설정**
-- 상대방 메시지를 어떤 언어로 번역하여 보여줄지 선택
-- 자동 번역 토글 ON/OFF 가능
-- 기본값: 한국어
-
-3. **저장하기** 버튼 클릭
-
----
-
-### 4단계: 사용 시작
-
-아래 주소에서 Google Chat을 열면 자동으로 번역 기능이 활성화됩니다.
-
-- `https://chat.google.com`
-- `https://mail.google.com` (Gmail 내장 Chat 포함)
+1. Chrome 우측 상단 퍼즐 아이콘(🧩) → **GChat Auto Translator** 클릭
+2. 번역 엔진 선택 (기본: Google 무료)
+3. AI 엔진 선택 시 해당 API 키 입력
+4. 발신/수신 언어 설정
+5. **저장하기** 클릭
 
 ---
 
 ## 사용 방법
 
 ### 메시지 보내기 (발신 번역)
+1. 채팅 입력창에 **한글**로 메시지 입력
+2. **Enter** 키를 누르면 자동으로 설정 언어로 번역되어 전송
+3. 이미 목표 언어로 입력한 경우 번역 없이 그대로 전송
 
-1. 채팅 입력창에 **한글**로 메시지를 입력합니다
-2. **Enter** 키를 누릅니다
-3. 자동으로 영어(설정된 언어)로 번역되어 전송됩니다
-
-> 이미 영어로 입력한 경우 번역 없이 그대로 전송됩니다.
-
-**수동 번역 단축키:** 전송 없이 입력창 내용만 번역하고 싶을 때
-→ 입력창 포커스 상태에서 `Alt + T`
-
----
+**수동 번역:** `Alt + T` — 전송 없이 입력창 내용만 번역
 
 ### 메시지 받기 (수신 번역)
-
-상대방이 메시지를 보내면 원문 아래에 🌐 아이콘과 함께 번역이 자동으로 표시됩니다.
+상대방이 메시지를 보내면 원문 아래에 🌐 아이콘과 함께 번역이 자동 표시됩니다.
 
 ```
 Okay, let me check
 🌐 알았어 확인해 볼게
 ```
 
-> 이미 설정 언어(한국어)로 작성된 메시지는 번역 표시가 생략됩니다.
+---
+
+## 지원 환경
+
+- `https://chat.google.com` (Google Chat)
+- `https://mail.google.com` (Gmail 내장 Chat)
 
 ---
 
 ## 지원 언어
-
-발신/수신 모두 아래 언어를 지원합니다.
 
 | 언어 | 코드 |
 |------|------|
@@ -127,30 +112,56 @@ Okay, let me check
 
 ## 업데이트 방법
 
-1. 새 버전의 파일로 폴더 내용을 교체합니다
-2. `chrome://extensions` → **Google Chat 번역기** → 새로고침(↺) 버튼 클릭
-3. Google Chat 탭을 새로고침합니다
+1. 새 버전의 파일로 폴더 내용 교체
+2. `chrome://extensions` → 확장 프로그램 새로고침(↺) 클릭
+3. Google Chat 탭 새로고침
 
 ---
 
-## 자주 묻는 질문
+## FAQ
 
 **Q. 번역이 동작하지 않아요**
-A. `chrome://extensions`에서 확장 프로그램이 활성화되어 있는지 확인하고, Google Chat 탭을 새로고침해 주세요.
+A. `chrome://extensions`에서 확장 프로그램이 활성화되어 있는지 확인하고, Google Chat 탭을 새로고침(`Ctrl + Shift + R`)해 주세요.
 
-**Q. 내가 보낸 메시지에도 번역이 붙어요**
-A. 최신 버전으로 업데이트하면 해결됩니다. 내가 보낸 메시지는 번역 뱃지가 표시되지 않습니다.
+**Q. "API 사용량 초과" 알림이 나타나요**
+A. Gemini 무료 티어는 분당 15건 제한이 있습니다. 잠시 기다리면 자동으로 재시도됩니다. 제한이 부담되면 Google 무료 번역으로 전환하세요.
 
-**Q. 특정 대화방에서 번역이 안 돼요**
-A. 페이지를 완전히 새로고침(`Ctrl + Shift + R`) 후 다시 시도해 주세요.
+**Q. Gmail에서 채팅 번역이 안 돼요**
+A. 확장 프로그램을 새로고침한 후 Gmail 탭도 새로고침해 주세요. `all_frames: true` 설정으로 Gmail 내장 Chat iframe에서도 동작합니다.
 
 **Q. API 키가 필요한가요?**
-A. 아닙니다. Google 무료 번역 API를 사용하므로 별도 API 키가 필요 없습니다.
+A. Google 무료 번역은 API 키 없이 사용 가능합니다. AI 엔진(Gemini, Claude, ChatGPT)을 사용하려면 각 서비스의 API 키가 필요합니다.
 
 ---
 
 ## 개인정보 및 보안
 
-- 입력한 텍스트는 번역을 위해 `translate.googleapis.com`으로만 전송됩니다
+- 입력한 텍스트는 선택한 번역 엔진(Google/Gemini/Claude/OpenAI)으로만 전송됩니다
 - 별도 서버나 외부 서비스로 데이터를 수집하거나 저장하지 않습니다
-- 모든 설정은 Chrome 로컬 저장소(`chrome.storage.local`)에만 저장됩니다
+- API 키를 포함한 모든 설정은 Chrome 로컬 저장소(`chrome.storage.local`)에만 저장됩니다
+- [개인정보처리방침](https://pks424.github.io/google-chat-translator/privacy-policy.html)
+
+---
+
+## 변경 이력
+
+### v1.1.0
+- AI 번역 엔진 추가 (Gemini, Claude, ChatGPT/OpenAI)
+- API rate limit 자동 재시도 (지수 백오프)
+- API 사용량 초과 시 토스트 알림 표시
+- Gmail 내장 Chat 지원 (`all_frames: true`)
+- 사이드바/대화 목록 번역 오적용 수정
+- Extension context 무효화 방어 코드 추가
+
+### v1.0.0
+- 최초 릴리스
+- Google 무료 번역 / Google Cloud Translation 지원
+- 발신/수신 자동 번역
+- Alt+T 수동 번역
+- 팝업 설정 UI
+
+---
+
+## 라이선스
+
+MIT License

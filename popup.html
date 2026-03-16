@@ -216,13 +216,25 @@
 
     <hr class="divider">
 
-    <div class="section-title">🔑 번역 API 설정 (선택)</div>
+    <div class="section-title">🤖 번역 엔진 설정</div>
     <div class="field">
+      <label><span class="icon">⚙️</span> 번역 엔진 선택</label>
+      <select id="aiProvider">
+        <option value="google_free">Google 번역 (무료, API 키 불필요)</option>
+        <option value="google_cloud">Google Cloud Translation (API 키 필요)</option>
+        <option value="gemini">Gemini (Google AI - 무료 티어 있음)</option>
+        <option value="claude">Claude (Anthropic - 고품질)</option>
+        <option value="openai">ChatGPT / OpenAI (GPT-4o-mini)</option>
+      </select>
+    </div>
+    <div class="field" id="apiKeyField" style="display:none;">
+      <label><span class="icon">🔑</span> <span id="apiKeyLabel">API 키</span></label>
+      <input type="password" id="aiApiKey" placeholder="" style="width:100%;padding:8px 10px;border:1px solid #dadce0;border-radius:6px;font-size:13px;outline:none;">
+      <div id="apiKeyHint" style="font-size:11px;color:#5f6368;margin-top:4px;"></div>
+    </div>
+    <div class="field" id="cloudKeyField" style="display:none;">
       <label><span class="icon">☁️</span> Google Cloud Translation API 키</label>
-      <input type="password" id="cloudApiKey" placeholder="AIza... (없으면 무료 API 자동 사용)" style="width:100%;padding:8px 10px;border:1px solid #dadce0;border-radius:6px;font-size:13px;outline:none;">
-      <div style="font-size:11px;color:#5f6368;margin-top:4px;">
-        키 없이도 동작합니다. 더 안정적인 사용을 원하면 입력하세요.
-      </div>
+      <input type="password" id="cloudApiKey" placeholder="AIza..." style="width:100%;padding:8px 10px;border:1px solid #dadce0;border-radius:6px;font-size:13px;outline:none;">
     </div>
 
     <hr class="divider">

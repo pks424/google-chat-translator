@@ -16,3 +16,30 @@
   margin-right: 4px;
   font-style: normal;
 }
+.gct-translation.gct-error {
+  background: #fce8e6;
+  border-left-color: #d93025;
+  color: #5f2120;
+  font-size: 11px;
+}
+
+/* 토스트 알림 */
+.gct-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #323232;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: 'Google Sans', sans-serif;
+  z-index: 999999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.gct-toast.show { opacity: 1; }
+.gct-toast.error { background: #d93025; }

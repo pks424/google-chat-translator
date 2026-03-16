@@ -3,12 +3,42 @@ const targetLangSelect           = document.getElementById('targetLang');
 const autoTranslateChk           = document.getElementById('autoTranslate');
 const showOutgoingTranslationChk = document.getElementById('showOutgoingTranslation');
 const cloudApiKeyInput           = document.getElementById('cloudApiKey');
+const aiProviderSelect           = document.getElementById('aiProvider');
+const aiApiKeyInput              = document.getElementById('aiApiKey');
+const apiKeyField                = document.getElementById('apiKeyField');
+const cloudKeyField              = document.getElementById('cloudKeyField');
+const apiKeyLabel                = document.getElementById('apiKeyLabel');
+const apiKeyHint                 = document.getElementById('apiKeyHint');
 const saveBtn                    = document.getElementById('saveBtn');
 const statusEl                   = document.getElementById('status');
 const setupBanner                = document.getElementById('setupBanner');
 
+const providerConfig = {
+  google_free:  { showKey: false, showCloud: false },
+  google_cloud: { showKey: false, showCloud: true },
+  gemini:       { showKey: true, showCloud: false, label: 'Gemini API 키', placeholder: 'AIza...', hint: 'Google AI Studio에서 발급 (aistudio.google.com)' },
+  claude:       { showKey: true, showCloud: false, label: 'Claude API 키', placeholder: 'sk-ant-...', hint: 'Anthropic Console에서 발급 (console.anthropic.com)' },
+  openai:       { showKey: true, showCloud: false, label: 'OpenAI API 키', placeholder: 'sk-...', hint: 'OpenAI Platform에서 발급 (platform.openai.com)' }
+};
+
+function updateProviderUI() {
+  const provider = aiProviderSelect.value;
+  const config = providerConfig[provider];
+
+  apiKeyField.style.display  = config.showKey   ? 'block' : 'none';
+  cloudKeyField.style.display = config.showCloud ? 'block' : 'none';
+
+  if (config.showKey) {
+    apiKeyLabel.textContent       = config.label;
+    aiApiKeyInput.placeholder     = config.placeholder;
+    apiKeyHint.textContent        = config.hint;
+  }
+}
+
+aiProviderSelect.addEventListener('change', updateProviderUI);
+
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'initialized'], (result) => {
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
@@ -17,22 +47,40 @@ chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoin
   autoTranslateChk.checked         = result.autoTranslate !== false;
   showOutgoingTranslationChk.checked = result.showOutgoingTranslation === true;
   cloudApiKeyInput.value           = result.cloudApiKey || '';
+  aiProviderSelect.value           = result.aiProvider  || 'google_free';
+  aiApiKeyInput.value              = result.aiApiKey    || '';
+  updateProviderUI();
 });
 
 // 저장 버튼
 saveBtn.addEventListener('click', () => {
+  const provider = aiProviderSelect.value;
+
+  // AI 프로바이더 선택 시 API 키 필수 체크
+  if (provider !== 'google_free' && provider !== 'google_cloud' && !aiApiKeyInput.value.trim()) {
+    showStatus('API 키를 입력해주세요.', 'error');
+    return;
+  }
+  if (provider === 'google_cloud' && !cloudApiKeyInput.value.trim()) {
+    showStatus('Google Cloud API 키를 입력해주세요.', 'error');
+    return;
+  }
+
   const settings = {
     outLang:                  outLangSelect.value,
     targetLang:               targetLangSelect.value,
     autoTranslate:            autoTranslateChk.checked,
     showOutgoingTranslation:  showOutgoingTranslationChk.checked,
     cloudApiKey:              cloudApiKeyInput.value.trim(),
+    aiProvider:               provider,
+    aiApiKey:                 aiApiKeyInput.value.trim(),
     initialized:              true
   };
 
   chrome.storage.local.set(settings, () => {
     setupBanner.classList.remove('visible');
-    showStatus('✓ 설정이 저장되었습니다! 페이지를 새로고침해주세요.', 'success');
+    const providerNames = { google_free: 'Google 무료', google_cloud: 'Google Cloud', gemini: 'Gemini', claude: 'Claude', openai: 'ChatGPT' };
+    showStatus(`✓ 저장 완료! 번역 엔진: ${providerNames[provider]}`, 'success');
   });
 });
 

@@ -11,15 +11,28 @@ const processingMessages = new WeakSet(); // 중복 처리 방지
 // 설정 불러오기
 async function getSettings() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey'], (result) => {
-      resolve({
-        targetLang:               result.targetLang    || 'ko',
-        outLang:                  result.outLang       || 'en',
-        autoTranslate:            result.autoTranslate !== false,
-        showOutgoingTranslation:  result.showOutgoingTranslation === true,
-        cloudApiKey:              result.cloudApiKey   || ''
+    // 확장 컨텍스트가 무효화된 경우 (페이지 새로고침 없이 extension reload 시) 기본값 반환
+    if (!chrome.runtime?.id) {
+      return resolve({ targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '' });
+    }
+    try {
+      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey'], (result) => {
+        if (chrome.runtime.lastError) {
+          return resolve({ targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '' });
+        }
+        resolve({
+          targetLang:               result.targetLang    || 'ko',
+          outLang:                  result.outLang       || 'en',
+          autoTranslate:            result.autoTranslate !== false,
+          showOutgoingTranslation:  result.showOutgoingTranslation === true,
+          cloudApiKey:              result.cloudApiKey   || '',
+          aiProvider:               result.aiProvider    || 'google_free',
+          aiApiKey:                 result.aiApiKey      || ''
+        });
       });
-    });
+    } catch (e) {
+      resolve({ targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '' });
+    }
   });
 }
 
@@ -49,12 +62,130 @@ async function googleTranslateFree(text, targetLang = 'en', sourceLang = 'auto')
   return { translated, detectedLang };
 }
 
-// 번역 통합 함수: API 키 있으면 공식, 없으면 무료 사용
+// 공통 언어 이름 매핑
+const LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', 'zh-CN': '简体中文', 'zh-TW': '繁體中文', de: 'Deutsch', fr: 'Français', es: 'Español' };
+
+// AI 번역 공통: rate limit 자동 재시도 (최대 3회, 지수 백오프)
+async function fetchWithRetry(fetchFn, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetchFn();
+    if (response.ok) return response;
+    if (response.status === 429 || response.status === 529 || response.status >= 500) {
+      const waitMs = Math.min(2000 * Math.pow(2, attempt), 10000); // 2s, 4s, 8s (최대 10s)
+      // 재시도 로그 생략 (chrome://extensions 오류 페이지 노출 방지)
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+    throw new Error(`API 요청 실패: ${response.status}`);
+  }
+  throw new Error('API rate limit 초과 - 최대 재시도 횟수 도달');
+}
+
+// AI 언어 감지 헬퍼
+function detectLangFromResult(text, translated, targetLang, sourceLang) {
+  return translated.toLowerCase() === text.toLowerCase() ? targetLang : (sourceLang === 'auto' ? 'unknown' : sourceLang);
+}
+
+// Gemini API 번역
+async function geminiTranslate(text, targetLang, sourceLang, apiKey) {
+  const targetName = LANG_NAMES[targetLang] || targetLang;
+  const prompt = `Translate the following text to ${targetName}. Return ONLY the translated text, nothing else.\n\n${text}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+  const response = await fetchWithRetry(() => fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+  }));
+  const data = await response.json();
+  const translated = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!translated) throw new Error('Gemini 응답 없음');
+  return { translated, detectedLang: detectLangFromResult(text, translated, targetLang, sourceLang) };
+}
+
+// Claude API 번역
+async function claudeTranslate(text, targetLang, sourceLang, apiKey) {
+  const targetName = LANG_NAMES[targetLang] || targetLang;
+  const prompt = `Translate the following text to ${targetName}. Return ONLY the translated text, nothing else.\n\n${text}`;
+
+  const response = await fetchWithRetry(() => fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  }));
+  const data = await response.json();
+  const translated = data.content?.[0]?.text?.trim();
+  if (!translated) throw new Error('Claude 응답 없음');
+  return { translated, detectedLang: detectLangFromResult(text, translated, targetLang, sourceLang) };
+}
+
+// OpenAI API 번역
+async function openaiTranslate(text, targetLang, sourceLang, apiKey) {
+  const targetName = LANG_NAMES[targetLang] || targetLang;
+
+  const response = await fetchWithRetry(() => fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: `You are a translator. Translate the user's text to ${targetName}. Return ONLY the translated text, nothing else.` },
+        { role: 'user', content: text }
+      ],
+      max_tokens: 1024
+    })
+  }));
+  const data = await response.json();
+  const translated = data.choices?.[0]?.message?.content?.trim();
+  if (!translated) throw new Error('OpenAI 응답 없음');
+  return { translated, detectedLang: detectLangFromResult(text, translated, targetLang, sourceLang) };
+}
+
+// Google Cloud Translation에도 재시도 적용
+async function googleTranslateCloudRetry(text, targetLang, sourceLang, apiKey) {
+  const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+  const response = await fetchWithRetry(() => fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: text, target: targetLang, source: sourceLang === 'auto' ? undefined : sourceLang, format: 'text' })
+  }));
+  const data = await response.json();
+  const translated = data.data.translations[0].translatedText;
+  const detectedLang = data.data.translations[0].detectedSourceLanguage || sourceLang;
+  return { translated, detectedLang };
+}
+
+// 번역 통합 함수: 설정된 AI 프로바이더에 따라 분기
 async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
   const settings = await getSettings();
-  if (settings.cloudApiKey) {
-    return googleTranslateCloud(text, targetLang, sourceLang, settings.cloudApiKey);
+
+  switch (settings.aiProvider) {
+    case 'gemini':
+      if (settings.aiApiKey) return geminiTranslate(text, targetLang, sourceLang, settings.aiApiKey);
+      break;
+    case 'claude':
+      if (settings.aiApiKey) return claudeTranslate(text, targetLang, sourceLang, settings.aiApiKey);
+      break;
+    case 'openai':
+      if (settings.aiApiKey) return openaiTranslate(text, targetLang, sourceLang, settings.aiApiKey);
+      break;
+    case 'google_cloud':
+      if (settings.cloudApiKey) return googleTranslateCloudRetry(text, targetLang, sourceLang, settings.cloudApiKey);
+      break;
   }
+  // 기본: 무료 Google 번역
   return googleTranslateFree(text, targetLang, sourceLang);
 }
 
@@ -83,25 +214,42 @@ function isChatInput(el) {
   if (el.getAttribute('contenteditable') !== 'true') return false;
   if (el.closest('.gct-translation')) return false; // 번역 뱃지 내부 제외
 
+  // 이메일 작성창 제외 (Gmail compose)
+  if (el.closest('[role="dialog"] [aria-label]')) {
+    const dialogLabel = (el.closest('[role="dialog"]')?.getAttribute('aria-label') || '').toLowerCase();
+    if (dialogLabel.includes('new message') || dialogLabel.includes('compose')) return false;
+  }
+  if (el.closest('.Am.Al.editable')) return false; // Gmail 이메일 본문
+
   const label  = (el.getAttribute('aria-label') || '').toLowerCase();
   const role   = (el.getAttribute('role') || '').toLowerCase();
-  const tag    = el.tagName.toLowerCase();
+  const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
 
-  // aria-label 기반 판별
+  // aria-label 기반 판별 (chat.google.com)
   if (label.includes('message') || label.includes('메시지') ||
       label.includes('reply')   || label.includes('답장')) return true;
 
-  // 역할 기반 판별
-  if (role === 'textbox') return true;
+  // placeholder 기반 (일부 Gmail Chat 빌드)
+  if (placeholder.includes('message') || placeholder.includes('메시지')) return true;
+
+  // 역할 기반 판별 — role="textbox" 는 거의 확실히 입력창
+  if (role === 'textbox') {
+    // 단, Gmail 이메일 검색창/To 필드 등 제외
+    if (el.closest('[role="search"]')) return false;
+    if (el.closest('header')) return false;
+    return true;
+  }
 
   // 부모 컨테이너 기반 판별 (chat.google.com)
   if (el.closest('[data-is-msg-input="true"]')) return true;
 
-  // Gmail 내장 Chat: 채팅 패널 내부의 contenteditable
-  if (el.closest('[jsname]') && tag === 'div') {
-    // 충분한 크기의 입력 영역이면 채팅 입력으로 간주
+  // Gmail 내장 Chat: jsaction 이나 jsname 부모 안에 있는 div contenteditable
+  if (el.closest('[jsname]') && el.tagName.toLowerCase() === 'div') {
     const rect = el.getBoundingClientRect();
-    if (rect.width > 100 && rect.height > 20 && rect.height < 300) return true;
+    if (rect.width > 100 && rect.height > 10 && rect.height < 300) {
+      // 채팅 패널 영역 내부인지 확인 (화면 우측 하단 채팅 창)
+      if (rect.left > window.innerWidth * 0.4 || rect.top > window.innerHeight * 0.5) return true;
+    }
   }
 
   return false;
@@ -172,17 +320,36 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// 토스트 알림 (중복 방지)
+let toastTimer = null;
+function showToast(message, type = 'info', duration = 3000) {
+  let toast = document.querySelector('.gct-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'gct-toast';
+    document.body.appendChild(toast);
+  }
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.className = 'gct-toast' + (type === 'error' ? ' error' : '');
+  requestAnimationFrame(() => toast.classList.add('show'));
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('show');
+    toastTimer = null;
+  }, duration);
+}
+
 // ─────────────────────────────────────────
 // [수신] 상대방 메시지 자동 번역
 // ─────────────────────────────────────────
 
-function createTranslationBadge(translatedText) {
+function createTranslationBadge(translatedText, isError = false) {
   const badge = document.createElement('div');
-  badge.className = 'gct-translation';
+  badge.className = 'gct-translation' + (isError ? ' gct-error' : '');
   badge.textContent = translatedText;
   const icon = document.createElement('span');
   icon.className = 'gct-translation-icon';
-  icon.textContent = '🌐 ';
+  icon.textContent = isError ? '⚠️ ' : '🌐 ';
   badge.prepend(icon);
   return badge;
 }
@@ -226,9 +393,15 @@ async function translateIncomingMessage(msgElement) {
     const badge = createTranslationBadge(translated);
     msgElement.appendChild(badge);
   } catch (err) {
-    console.error('[GCT] 수신 번역 오류:', err);
-    // 실패 시 done 해제해서 재시도 가능하게
-    delete msgElement.dataset.gctDone;
+    const msg = err.message || '';
+    if (msg.includes('rate limit') || msg.includes('429')) {
+      showToast('⚠️ API 사용량 초과 - 잠시 후 자동 재시도됩니다', 'error', 3000);
+      // 30초 후 재시도 가능하도록 done 해제
+      setTimeout(() => { delete msgElement.dataset.gctDone; }, 30000);
+    } else {
+      console.error('[GCT] 수신 번역 오류:', err);
+      delete msgElement.dataset.gctDone;
+    }
   } finally {
     processingMessages.delete(msgElement);
   }
@@ -236,11 +409,10 @@ async function translateIncomingMessage(msgElement) {
 
 // 메시지 요소 판별
 // chat.google.com, mail.google.com 내장 Chat 공통으로 동작하도록
-// 실제 DOM 분석: jsname="bgckF" 가 메시지 텍스트 컨테이너
 function findMessageElements() {
   const candidates = new Set();
 
-  // 1순위: jsname="bgckF" — 실제 Google Chat 메시지 텍스트 컨테이너 (확인된 DOM 구조)
+  // 1순위: jsname="bgckF" — chat.google.com 메시지 텍스트 컨테이너 (확인된 DOM 구조)
   document.querySelectorAll('div[jsname="bgckF"]').forEach(el => candidates.add(el));
 
   // 2순위: data-message-id 컨테이너 내부 — 다른 버전 대비 fallback
@@ -248,15 +420,27 @@ function findMessageElements() {
     '[data-message-id] [dir="auto"], [data-message-id] [dir="ltr"], [data-message-id] p'
   ).forEach(el => candidates.add(el));
 
-  // 3순위: dir="auto" 일반 요소 — 기타 환경 / 독립형 chat.google.com 대비
+  // 3순위: Gmail 내장 Chat / role="row" 내부
+  document.querySelectorAll('[role="row"] [dir="auto"]').forEach(el => candidates.add(el));
+
+  // 4순위: dir="auto" 일반 요소 — 기타 환경 / 독립형 chat.google.com 대비
   document.querySelectorAll('div[dir="auto"], span[dir="auto"]').forEach(el => candidates.add(el));
+
+  // 5순위: jsname="r4nke" — Gmail Chat 패널 메시지 텍스트 (알려진 일부 DOM)
+  document.querySelectorAll('div[jsname="r4nke"], div[jsname="K7OJed"]').forEach(el => candidates.add(el));
 
   const results = [];
   candidates.forEach((el) => {
     if (el.closest('.gct-translation') || el.classList.contains('gct-translation')) return;
     if (el.closest('[contenteditable]')) return;
-    if (el.closest('button, a, [role="button"], [role="menuitem"]')) return;
+    if (el.closest('button, a, [role="button"], [role="menuitem"], [role="option"]')) return;
     if (el.dataset.gctDone) return;
+    // 사이드바 / 채팅 목록 / 네비게이션 영역 제외
+    if (el.closest('nav, [role="navigation"], aside')) return;
+    // Google Chat 대화 목록 아이템 제외 (확인된 DOM: .wzx93, .ajDw2c, [role="link"].LoYJxb)
+    if (el.closest('.wzx93, .ajDw2c, .LoYJxb, .Y2L8Ee, .teTAFe, .n5yyEc')) return;
+    // Gmail 이메일 본문 제외
+    if (el.closest('.a3s, .Am.Al.editable, [role="main"] .ii')) return;
     // 내가 보낸 메시지 제외: jsname="Ne3sFf" 조상에 Pxe3Yd 클래스가 있으면 outgoing
     const bubble = el.closest('[jsname="Ne3sFf"]');
     if (bubble && bubble.classList.contains('Pxe3Yd')) return;
@@ -284,13 +468,32 @@ function findOutgoingElements() {
   return results;
 }
 
+let isProcessing = false;
 async function processNewMessages() {
-  findMessageElements().forEach(translateIncomingMessage);
+  if (isProcessing) return;
+  isProcessing = true;
 
-  // showOutgoingTranslation 설정이 ON일 때만 발신 메시지도 번역 뱃지 표시
-  const settings = await getSettings();
-  if (settings.showOutgoingTranslation) {
-    findOutgoingElements().forEach(translateIncomingMessage);
+  try {
+    const settings = await getSettings();
+    const isAI = ['gemini', 'claude', 'openai'].includes(settings.aiProvider);
+    // Gemini 무료: 15 RPM → 4초 간격, 다른 AI: 1초 간격
+    const delay = settings.aiProvider === 'gemini' ? 4000 : (isAI ? 1000 : 0);
+
+    const incoming = findMessageElements();
+    for (const el of incoming) {
+      await translateIncomingMessage(el);
+      if (delay) await new Promise(r => setTimeout(r, delay));
+    }
+
+    if (settings.showOutgoingTranslation) {
+      const outgoing = findOutgoingElements();
+      for (const el of outgoing) {
+        await translateIncomingMessage(el);
+        if (delay) await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  } finally {
+    isProcessing = false;
   }
 }
 
@@ -299,9 +502,17 @@ async function processNewMessages() {
 // ─────────────────────────────────────────
 
 function scanInputs() {
-  document.querySelectorAll('[contenteditable="true"]').forEach((el) => {
-    if (isChatInput(el)) attachToInputBox(el);
+  const all = document.querySelectorAll('[contenteditable="true"]');
+  let attached = 0;
+  all.forEach((el) => {
+    if (isChatInput(el)) {
+      attachToInputBox(el);
+      attached++;
+    }
   });
+  if (all.length > 0) {
+    console.log(`[GCT] contenteditable 요소 ${all.length}개 발견, 채팅 입력 감지: ${attached}개`);
+  }
 }
 
 function observeChat() {
