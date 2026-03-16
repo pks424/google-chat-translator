@@ -33,7 +33,7 @@ Google Chat에서 외국어로 대화할 때 자동으로 번역해주는 Chrome
 ## 설치 방법
 
 ### Chrome Web Store (권장)
-> 심사 후 등록 예정
+[Chrome Web Store에서 설치하기](https://chromewebstore.google.com/detail/gchat-auto-translator/cfleebgpagmnllhocpippekelapdgeae)
 
 ### 수동 설치 (개발자 모드)
 
