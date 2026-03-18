@@ -51,7 +51,7 @@ function toggleRoomTranslate() {
     document.querySelectorAll('[data-gct-done]').forEach(el => delete el.dataset.gctDone);
   }
   updateToggleButton();
-  chrome.storage?.local?.set({ disabledRooms: Array.from(disabledRooms) });
+  try { chrome.storage?.local?.set({ disabledRooms: Array.from(disabledRooms) }); } catch (e) { /* context invalidated */ }
 }
 
 function updateToggleButton() {
