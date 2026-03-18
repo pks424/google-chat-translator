@@ -638,10 +638,13 @@ async function translateIncomingMessage(msgElement) {
     const msg = err.message || '';
     if (msg.includes('rate limit') || msg.includes('429')) {
       showToast('⚠️ API 사용량 초과 - 잠시 후 자동 재시도됩니다', 'error', 3000);
-      // 30초 후 재시도 가능하도록 done 해제
       setTimeout(() => { delete msgElement.dataset.gctDone; }, 30000);
+    } else if (msg.includes('401') || msg.includes('403')) {
+      showToast('⚠️ API 키 인증 실패 - 팝업에서 키를 확인하세요', 'error', 4000);
+      console.log('[GCT] API 인증 오류:', msg);
     } else {
-      console.error('[GCT] 수신 번역 오류:', err);
+      showToast('⚠️ 번역 오류 발생', 'error', 2000);
+      console.log('[GCT] 수신 번역 오류:', msg);
       delete msgElement.dataset.gctDone;
     }
   } finally {
