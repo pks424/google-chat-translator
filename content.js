@@ -8,6 +8,56 @@ let isSendingTranslated = false; // 시뮬레이션 Enter 재진입 방지
 const attachedInputs = new WeakSet();
 const processingMessages = new WeakSet(); // 중복 처리 방지
 
+// ─── 채팅방별 번역 ON/OFF ───
+let roomTranslateEnabled = true;
+const disabledRooms = new Set();
+
+function getCurrentRoomId() {
+  // URL에서 채팅방 ID 추출
+  const match = location.href.match(/\/chat\/([^/?#]+)|\/space\/([^/?#]+)/);
+  return match ? (match[1] || match[2]) : location.href;
+}
+
+function isRoomTranslateEnabled() {
+  return !disabledRooms.has(getCurrentRoomId());
+}
+
+function toggleRoomTranslate() {
+  const roomId = getCurrentRoomId();
+  if (disabledRooms.has(roomId)) {
+    disabledRooms.delete(roomId);
+    showToast('이 채팅방 번역 ON', 'info', 2000);
+  } else {
+    disabledRooms.add(roomId);
+    showToast('이 채팅방 번역 OFF', 'error', 2000);
+  }
+  updateToggleButton();
+  // 비활성 목록을 storage에 저장
+  chrome.storage?.local?.set({ disabledRooms: Array.from(disabledRooms) });
+}
+
+function updateToggleButton() {
+  const btn = document.getElementById('gct-room-toggle');
+  if (!btn) return;
+  const enabled = isRoomTranslateEnabled();
+  btn.textContent = enabled ? '🌐 번역 ON' : '🚫 번역 OFF';
+  btn.style.background = enabled ? '#1a73e8' : '#5f6368';
+}
+
+function ensureToggleButton() {
+  if (document.getElementById('gct-room-toggle')) return;
+  const btn = document.createElement('button');
+  btn.id = 'gct-room-toggle';
+  btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:999999;padding:6px 12px;color:#fff;border:none;border-radius:20px;font-size:12px;font-family:"Google Sans",sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:background 0.2s;';
+  btn.onclick = toggleRoomTranslate;
+  document.body.appendChild(btn);
+  // 저장된 비활성 목록 불러오기
+  chrome.storage?.local?.get(['disabledRooms'], (r) => {
+    if (r?.disabledRooms) r.disabledRooms.forEach(id => disabledRooms.add(id));
+    updateToggleButton();
+  });
+}
+
 // ─── 번역 캐시 (메모리 내, 최대 500건) ───
 const translationCache = new Map();
 const CACHE_MAX_SIZE = 500;
@@ -341,6 +391,8 @@ function attachToInputBox(inputBox) {
     // 우리가 직접 보낸 시뮬레이션 Enter는 무시
     if (isSendingTranslated) return;
     if (e.key !== 'Enter' || e.shiftKey || isTranslating) return;
+    // 채팅방별 번역 OFF면 원본 전송
+    if (!isRoomTranslateEnabled()) return;
     const text = (inputBox.innerText || inputBox.textContent).trim();
     if (!text) return;
 
@@ -415,6 +467,8 @@ function createTranslationBadge(translatedText, isError = false) {
 }
 
 async function translateIncomingMessage(msgElement) {
+  // 채팅방별 번역 OFF 체크
+  if (!isRoomTranslateEnabled()) return;
   // 이미 번역됐거나 현재 처리 중이면 스킵
   if (msgElement.dataset.gctDone) return;
   if (processingMessages.has(msgElement)) return;
@@ -587,3 +641,4 @@ function observeChat() {
 observeChat();
 setTimeout(() => { scanInputs(); processNewMessages(); }, 2000);
 console.log('[GCT] Google Chat 번역기 활성화 - chat.google.com + mail.google.com 지원');
+ensureToggleButton();
