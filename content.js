@@ -713,33 +713,62 @@ function findOutgoingElements() {
   return results;
 }
 
-let isProcessing = false;
-async function processNewMessages() {
-  if (isProcessing) return;
-  isProcessing = true;
+// ─── IntersectionObserver: 뷰포트에 보이는 메시지만 번역 ───
+const translateQueue = [];
+let isQueueProcessing = false;
+const observedElements = new WeakSet();
+
+const visibilityObserver = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (entry.isIntersecting && !entry.target.dataset.gctDone) {
+      translateQueue.push(entry.target);
+      visibilityObserver.unobserve(entry.target);
+      processTranslateQueue();
+    }
+  }
+}, { threshold: 0.1 });
+
+async function processTranslateQueue() {
+  if (isQueueProcessing) return;
+  isQueueProcessing = true;
 
   try {
     const settings = await getSettings();
     const isAI = ['gemini', 'claude', 'openai'].includes(settings.aiProvider);
-    // Gemini 무료: 15 RPM → 4초 간격, 다른 AI: 1초 간격
     const delay = settings.aiProvider === 'gemini' ? 4000 : (isAI ? 1000 : 0);
 
-    const incoming = findMessageElements();
-    for (const el of incoming) {
+    while (translateQueue.length > 0) {
+      const el = translateQueue.shift();
+      if (el.dataset.gctDone) continue;
       await translateIncomingMessage(el);
-      if (delay) await new Promise(r => setTimeout(r, delay));
+      if (delay && translateQueue.length > 0) await new Promise(r => setTimeout(r, delay));
     }
+  } finally {
+    isQueueProcessing = false;
+  }
+}
 
+function processNewMessages() {
+  const incoming = findMessageElements();
+  for (const el of incoming) {
+    if (!observedElements.has(el)) {
+      observedElements.add(el);
+      visibilityObserver.observe(el);
+    }
+  }
+
+  // 발신 메시지도 동일하게 뷰포트 기반
+  getSettings().then(settings => {
     if (settings.showOutgoingTranslation) {
       const outgoing = findOutgoingElements();
       for (const el of outgoing) {
-        await translateIncomingMessage(el);
-        if (delay) await new Promise(r => setTimeout(r, delay));
+        if (!observedElements.has(el)) {
+          observedElements.add(el);
+          visibilityObserver.observe(el);
+        }
       }
     }
-  } finally {
-    isProcessing = false;
-  }
+  });
 }
 
 // ─────────────────────────────────────────
