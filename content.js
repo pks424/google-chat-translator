@@ -606,7 +606,7 @@ function createTranslationBadge(translatedText, isError = false, originalText = 
   return badge;
 }
 
-async function translateIncomingMessage(msgElement) {
+async function translateIncomingMessage(msgElement, isOutgoing = false) {
   // 채팅방별 번역 OFF 체크
   if (!isRoomTranslateEnabled()) return;
   // 이미 번역됐거나 현재 처리 중이면 스킵
@@ -636,7 +636,7 @@ async function translateIncomingMessage(msgElement) {
 
   try {
     const settings = await getSettings();
-    if (!settings.autoTranslate) return;
+    if (!isOutgoing && !settings.autoTranslate) return;
 
     // 사전 언어 감지: 이미 목표 언어면 API 호출 자체를 스킵
     const preDetected = detectLanguageByScript(text);
@@ -713,15 +713,34 @@ function findMessageElements() {
   return results;
 }
 
-// 내가 보낸 메시지 요소만 반환 (Pxe3Yd 클래스 = outgoing)
+// 내가 보낸 메시지 요소만 반환
 function findOutgoingElements() {
   const results = [];
+  const candidates = new Set();
+
+  // chat.google.com: Pxe3Yd 클래스 = outgoing
   document.querySelectorAll('div[jsname="bgckF"]').forEach((el) => {
-    if (el.dataset.gctDone) return;
-    if (el.closest('.gct-translation')) return;
-    if (el.querySelector('.gct-translation')) return;
     const bubble = el.closest('[jsname="Ne3sFf"]');
-    if (!bubble || !bubble.classList.contains('Pxe3Yd')) return;
+    if (bubble && bubble.classList.contains('Pxe3Yd')) candidates.add(el);
+  });
+
+  // Gmail Chat: 발신 메시지는 보통 오른쪽 정렬 또는 특정 클래스
+  // data-self-message, data-is-self, 또는 align-self: flex-end 등
+  document.querySelectorAll('[data-self-message] [dir="auto"], [data-is-self] [dir="auto"]').forEach(el => candidates.add(el));
+
+  // Gmail Chat fallback: 전체 dir="auto" 중 outgoing 스타일 감지
+  document.querySelectorAll('[role="row"] [dir="auto"]').forEach(el => {
+    const row = el.closest('[role="row"]');
+    if (!row) return;
+    // Gmail outgoing 메시지는 오른쪽에 배치됨 (justify-content: flex-end 등)
+    const style = window.getComputedStyle(row);
+    if (style.justifyContent === 'flex-end' || style.textAlign === 'right') candidates.add(el);
+  });
+
+  candidates.forEach(el => {
+    if (el.dataset.gctDone) return;
+    if (el.closest('.gct-translation') || el.querySelector('.gct-translation')) return;
+    if (el.closest('.wzx93, .ajDw2c, .LoYJxb')) return;
     const text = (el.innerText || el.textContent || '').trim();
     if (!text) return;
     results.push(el);
@@ -756,7 +775,8 @@ async function processTranslateQueue() {
     while (translateQueue.length > 0) {
       const el = translateQueue.shift();
       if (el.dataset.gctDone) continue;
-      await translateIncomingMessage(el);
+      const isOutgoing = el.dataset.gctOutgoing === '1';
+      await translateIncomingMessage(el, isOutgoing);
       if (delay && translateQueue.length > 0) await new Promise(r => setTimeout(r, delay));
     }
   } finally {
@@ -780,6 +800,7 @@ function processNewMessages() {
       for (const el of outgoing) {
         if (!observedElements.has(el)) {
           observedElements.add(el);
+          el.dataset.gctOutgoing = '1'; // 발신 표시
           visibilityObserver.observe(el);
         }
       }
