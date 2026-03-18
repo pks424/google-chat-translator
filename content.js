@@ -32,17 +32,13 @@ function setCachedTranslation(text, targetLang, sourceLang, result) {
 }
 
 // 설정 불러오기
+const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [] };
 async function getSettings() {
   return new Promise((resolve) => {
-    // 확장 컨텍스트가 무효화된 경우 (페이지 새로고침 없이 extension reload 시) 기본값 반환
-    if (!chrome.runtime?.id) {
-      return resolve({ targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '' });
-    }
+    if (!chrome.runtime?.id) return resolve({ ...DEFAULT_SETTINGS });
     try {
-      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey'], (result) => {
-        if (chrome.runtime.lastError) {
-          return resolve({ targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '' });
-        }
+      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary'], (result) => {
+        if (chrome.runtime.lastError) return resolve({ ...DEFAULT_SETTINGS });
         resolve({
           targetLang:               result.targetLang    || 'ko',
           outLang:                  result.outLang       || 'en',
@@ -50,13 +46,38 @@ async function getSettings() {
           showOutgoingTranslation:  result.showOutgoingTranslation === true,
           cloudApiKey:              result.cloudApiKey   || '',
           aiProvider:               result.aiProvider    || 'google_free',
-          aiApiKey:                 result.aiApiKey      || ''
+          aiApiKey:                 result.aiApiKey      || '',
+          glossary:                 result.glossary      || []
         });
       });
     } catch (e) {
-      resolve({ targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '' });
+      resolve({ ...DEFAULT_SETTINGS });
     }
   });
+}
+
+// ─── 용어 사전: 번역 전 치환 → 번역 후 복원 ───
+function applyGlossary(text, glossary) {
+  if (!glossary || glossary.length === 0) return { text, placeholders: [] };
+  const placeholders = [];
+  let processed = text;
+  glossary.forEach((entry, i) => {
+    const regex = new RegExp(entry.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const placeholder = `§§${i}§§`;
+    if (regex.test(processed)) {
+      placeholders.push({ placeholder, to: entry.to || entry.from });
+      processed = processed.replace(regex, placeholder);
+    }
+  });
+  return { text: processed, placeholders };
+}
+
+function restoreGlossary(translated, placeholders) {
+  let result = translated;
+  placeholders.forEach(({ placeholder, to }) => {
+    result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), to);
+  });
+  return result;
 }
 
 // Google Cloud Translation API (공식 - API 키 필요)
@@ -190,30 +211,38 @@ async function googleTranslateCloudRetry(text, targetLang, sourceLang, apiKey) {
   return { translated, detectedLang };
 }
 
-// 번역 통합 함수: 캐시 → AI 프로바이더 분기
+// 번역 통합 함수: 캐시 → 용어 사전 → AI 프로바이더 분기
 async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
   // 캐시 확인
   const cached = getCachedTranslation(text, targetLang, sourceLang);
   if (cached) return cached;
 
   const settings = await getSettings();
-  let result;
 
+  // 용어 사전 적용: 번역 전 치환
+  const { text: processedText, placeholders } = applyGlossary(text, settings.glossary);
+
+  let result;
   switch (settings.aiProvider) {
     case 'gemini':
-      if (settings.aiApiKey) { result = await geminiTranslate(text, targetLang, sourceLang, settings.aiApiKey); break; }
+      if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey); break; }
       break;
     case 'claude':
-      if (settings.aiApiKey) { result = await claudeTranslate(text, targetLang, sourceLang, settings.aiApiKey); break; }
+      if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey); break; }
       break;
     case 'openai':
-      if (settings.aiApiKey) { result = await openaiTranslate(text, targetLang, sourceLang, settings.aiApiKey); break; }
+      if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey); break; }
       break;
     case 'google_cloud':
-      if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(text, targetLang, sourceLang, settings.cloudApiKey); break; }
+      if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(processedText, targetLang, sourceLang, settings.cloudApiKey); break; }
       break;
   }
-  if (!result) result = await googleTranslateFree(text, targetLang, sourceLang);
+  if (!result) result = await googleTranslateFree(processedText, targetLang, sourceLang);
+
+  // 용어 사전 복원
+  if (placeholders.length > 0) {
+    result = { ...result, translated: restoreGlossary(result.translated, placeholders) };
+  }
 
   // 캐시 저장
   setCachedTranslation(text, targetLang, sourceLang, result);

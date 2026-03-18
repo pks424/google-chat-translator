@@ -239,6 +239,17 @@
 
     <hr class="divider">
 
+    <div class="section-title">📖 용어 사전</div>
+    <div style="font-size:11px;color:#5f6368;margin-bottom:8px;">번역하지 않을 단어나 커스텀 번역을 등록하세요. "변환 후"를 비워두면 원문 그대로 유지됩니다.</div>
+    <div id="glossaryList"></div>
+    <div style="display:flex;gap:4px;margin-bottom:12px;">
+      <input type="text" id="glossaryFrom" placeholder="원문 (예: eformsign)" style="flex:1;padding:6px 8px;border:1px solid #dadce0;border-radius:6px;font-size:12px;">
+      <input type="text" id="glossaryTo" placeholder="변환 후 (비워두면 유지)" style="flex:1;padding:6px 8px;border:1px solid #dadce0;border-radius:6px;font-size:12px;">
+      <button id="glossaryAddBtn" style="padding:6px 10px;background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;">추가</button>
+    </div>
+
+    <hr class="divider">
+
     <button class="btn-save" id="saveBtn">저장하기</button>
     <div class="status" id="status"></div>
 

@@ -12,6 +12,37 @@ const apiKeyHint                 = document.getElementById('apiKeyHint');
 const saveBtn                    = document.getElementById('saveBtn');
 const statusEl                   = document.getElementById('status');
 const setupBanner                = document.getElementById('setupBanner');
+const glossaryList               = document.getElementById('glossaryList');
+const glossaryFromInput          = document.getElementById('glossaryFrom');
+const glossaryToInput            = document.getElementById('glossaryTo');
+const glossaryAddBtn             = document.getElementById('glossaryAddBtn');
+
+// ─── 용어 사전 관리 ───
+let glossary = [];
+
+function renderGlossary() {
+  glossaryList.innerHTML = '';
+  glossary.forEach((entry, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#f8f9fa;border-radius:4px;font-size:12px;';
+    row.innerHTML = `<span style="flex:1;"><b>${entry.from}</b> → ${entry.to || '<i>유지</i>'}</span>`;
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.style.cssText = 'background:none;border:none;color:#d93025;cursor:pointer;font-size:14px;padding:0 4px;';
+    delBtn.onclick = () => { glossary.splice(i, 1); renderGlossary(); };
+    row.appendChild(delBtn);
+    glossaryList.appendChild(row);
+  });
+}
+
+glossaryAddBtn.addEventListener('click', () => {
+  const from = glossaryFromInput.value.trim();
+  if (!from) return;
+  glossary.push({ from, to: glossaryToInput.value.trim() });
+  glossaryFromInput.value = '';
+  glossaryToInput.value = '';
+  renderGlossary();
+});
 
 const providerConfig = {
   google_free:  { showKey: false, showCloud: false },
@@ -38,7 +69,7 @@ function updateProviderUI() {
 aiProviderSelect.addEventListener('change', updateProviderUI);
 
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'initialized'], (result) => {
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
@@ -49,6 +80,8 @@ chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoin
   cloudApiKeyInput.value           = result.cloudApiKey || '';
   aiProviderSelect.value           = result.aiProvider  || 'google_free';
   aiApiKeyInput.value              = result.aiApiKey    || '';
+  glossary                         = result.glossary    || [];
+  renderGlossary();
   updateProviderUI();
 });
 
@@ -74,6 +107,7 @@ saveBtn.addEventListener('click', () => {
     cloudApiKey:              cloudApiKeyInput.value.trim(),
     aiProvider:               provider,
     aiApiKey:                 aiApiKeyInput.value.trim(),
+    glossary:                 glossary,
     initialized:              true
   };
 
