@@ -12,6 +12,8 @@ const apiKeyHint                 = document.getElementById('apiKeyHint');
 const saveBtn                    = document.getElementById('saveBtn');
 const statusEl                   = document.getElementById('status');
 const setupBanner                = document.getElementById('setupBanner');
+const translationToneSelect      = document.getElementById('translationTone');
+const toneField                  = document.getElementById('toneField');
 const glossaryList               = document.getElementById('glossaryList');
 const glossaryFromInput          = document.getElementById('glossaryFrom');
 const glossaryToInput            = document.getElementById('glossaryTo');
@@ -58,6 +60,8 @@ function updateProviderUI() {
 
   apiKeyField.style.display  = config.showKey   ? 'block' : 'none';
   cloudKeyField.style.display = config.showCloud ? 'block' : 'none';
+  // AI 엔진일 때만 톤 설정 표시
+  toneField.style.display = (provider === 'gemini' || provider === 'claude' || provider === 'openai') ? 'block' : 'none';
 
   if (config.showKey) {
     apiKeyLabel.textContent       = config.label;
@@ -69,7 +73,7 @@ function updateProviderUI() {
 aiProviderSelect.addEventListener('change', updateProviderUI);
 
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'initialized'], (result) => {
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
@@ -80,6 +84,7 @@ chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoin
   cloudApiKeyInput.value           = result.cloudApiKey || '';
   aiProviderSelect.value           = result.aiProvider  || 'google_free';
   aiApiKeyInput.value              = result.aiApiKey    || '';
+  translationToneSelect.value      = result.translationTone || 'natural';
   glossary                         = result.glossary    || [];
   renderGlossary();
   updateProviderUI();
@@ -107,6 +112,7 @@ saveBtn.addEventListener('click', () => {
     cloudApiKey:              cloudApiKeyInput.value.trim(),
     aiProvider:               provider,
     aiApiKey:                 aiApiKeyInput.value.trim(),
+    translationTone:          translationToneSelect.value,
     glossary:                 glossary,
     initialized:              true
   };

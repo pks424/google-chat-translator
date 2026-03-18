@@ -82,12 +82,12 @@ function setCachedTranslation(text, targetLang, sourceLang, result) {
 }
 
 // 설정 불러오기
-const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [] };
+const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural' };
 async function getSettings() {
   return new Promise((resolve) => {
     if (!chrome.runtime?.id) return resolve({ ...DEFAULT_SETTINGS });
     try {
-      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary'], (result) => {
+      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone'], (result) => {
         if (chrome.runtime.lastError) return resolve({ ...DEFAULT_SETTINGS });
         resolve({
           targetLang:               result.targetLang    || 'ko',
@@ -97,7 +97,8 @@ async function getSettings() {
           cloudApiKey:              result.cloudApiKey   || '',
           aiProvider:               result.aiProvider    || 'google_free',
           aiApiKey:                 result.aiApiKey      || '',
-          glossary:                 result.glossary      || []
+          glossary:                 result.glossary      || [],
+          translationTone:          result.translationTone || 'natural'
         });
       });
     } catch (e) {
@@ -128,6 +129,18 @@ function restoreGlossary(translated, placeholders) {
     result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), to);
   });
   return result;
+}
+
+// 톤 프롬프트 생성
+function getToneInstruction(tone) {
+  const toneMap = {
+    natural: '',
+    formal: 'Use formal, polite language (존댓말/경어). ',
+    informal: 'Use casual, informal language (반말). ',
+    business: 'Use professional business tone. ',
+    friendly: 'Use friendly, warm conversational tone. '
+  };
+  return toneMap[tone] || '';
 }
 
 // Google Cloud Translation API (공식 - API 키 필요)
@@ -181,9 +194,10 @@ function detectLangFromResult(text, translated, targetLang, sourceLang) {
 }
 
 // Gemini API 번역
-async function geminiTranslate(text, targetLang, sourceLang, apiKey) {
+async function geminiTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural') {
   const targetName = LANG_NAMES[targetLang] || targetLang;
-  const prompt = `Translate the following text to ${targetName}. Return ONLY the translated text, nothing else.\n\n${text}`;
+  const toneInst = getToneInstruction(tone);
+  const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${text}`;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   const response = await fetchWithRetry(() => fetch(url, {
@@ -198,9 +212,10 @@ async function geminiTranslate(text, targetLang, sourceLang, apiKey) {
 }
 
 // Claude API 번역
-async function claudeTranslate(text, targetLang, sourceLang, apiKey) {
+async function claudeTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural') {
   const targetName = LANG_NAMES[targetLang] || targetLang;
-  const prompt = `Translate the following text to ${targetName}. Return ONLY the translated text, nothing else.\n\n${text}`;
+  const toneInst = getToneInstruction(tone);
+  const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${text}`;
 
   const response = await fetchWithRetry(() => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -223,8 +238,9 @@ async function claudeTranslate(text, targetLang, sourceLang, apiKey) {
 }
 
 // OpenAI API 번역
-async function openaiTranslate(text, targetLang, sourceLang, apiKey) {
+async function openaiTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural') {
   const targetName = LANG_NAMES[targetLang] || targetLang;
+  const toneInst = getToneInstruction(tone);
 
   const response = await fetchWithRetry(() => fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -235,7 +251,7 @@ async function openaiTranslate(text, targetLang, sourceLang, apiKey) {
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: `You are a translator. Translate the user's text to ${targetName}. Return ONLY the translated text, nothing else.` },
+        { role: 'system', content: `You are a translator. Translate the user's text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.` },
         { role: 'user', content: text }
       ],
       max_tokens: 1024
@@ -272,16 +288,17 @@ async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
   // 용어 사전 적용: 번역 전 치환
   const { text: processedText, placeholders } = applyGlossary(text, settings.glossary);
 
+  const tone = settings.translationTone || 'natural';
   let result;
   switch (settings.aiProvider) {
     case 'gemini':
-      if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey); break; }
+      if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone); break; }
       break;
     case 'claude':
-      if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey); break; }
+      if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone); break; }
       break;
     case 'openai':
-      if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey); break; }
+      if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone); break; }
       break;
     case 'google_cloud':
       if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(processedText, targetLang, sourceLang, settings.cloudApiKey); break; }
