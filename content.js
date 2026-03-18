@@ -63,10 +63,22 @@ function updateToggleButton() {
 }
 
 function ensureToggleButton() {
-  if (document.getElementById('gct-room-toggle')) return;
   // 최상위 Gmail 프레임에서는 버튼 생성 안 함 (채팅 iframe에서만)
   if (location.hostname === 'mail.google.com' && window === window.top) return;
 
+  // 설정에서 플로팅 버튼 비활성화 시 기존 버튼 제거
+  chrome.storage?.local?.get(['showFloatingBtn'], (r) => {
+    if (r?.showFloatingBtn === false) {
+      const existing = document.getElementById('gct-room-toggle');
+      if (existing) existing.remove();
+      return;
+    }
+    createToggleButton();
+  });
+}
+
+function createToggleButton() {
+  if (document.getElementById('gct-room-toggle')) return;
   const btn = document.createElement('button');
   btn.id = 'gct-room-toggle';
   btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:999999;padding:6px 12px;color:#fff;border:none;border-radius:20px;font-size:12px;font-family:"Google Sans",sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:background 0.2s;';
@@ -110,12 +122,12 @@ function setCachedTranslation(text, targetLang, sourceLang, result) {
 }
 
 // 설정 불러오기
-const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural' };
+const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural', showFloatingBtn: true };
 async function getSettings() {
   return new Promise((resolve) => {
     if (!chrome.runtime?.id) return resolve({ ...DEFAULT_SETTINGS });
     try {
-      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone'], (result) => {
+      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn'], (result) => {
         if (chrome.runtime.lastError) return resolve({ ...DEFAULT_SETTINGS });
         resolve({
           targetLang:               result.targetLang    || 'ko',
@@ -126,7 +138,8 @@ async function getSettings() {
           aiProvider:               result.aiProvider    || 'google_free',
           aiApiKey:                 result.aiApiKey      || '',
           glossary:                 result.glossary      || [],
-          translationTone:          result.translationTone || 'natural'
+          translationTone:          result.translationTone || 'natural',
+          showFloatingBtn:          result.showFloatingBtn !== false
         });
       });
     } catch (e) {
@@ -809,4 +822,16 @@ ensureToggleButton();
 // 단축키 메시지 수신 (background → content)
 chrome.runtime?.onMessage?.addListener((msg) => {
   if (msg.action === 'toggleRoomTranslate') toggleRoomTranslate();
+});
+
+// 설정 변경 실시간 반영 (플로팅 버튼 표시/숨김)
+chrome.storage?.onChanged?.addListener((changes) => {
+  if (changes.showFloatingBtn) {
+    if (changes.showFloatingBtn.newValue === false) {
+      const btn = document.getElementById('gct-room-toggle');
+      if (btn) btn.remove();
+    } else {
+      ensureToggleButton();
+    }
+  }
 });

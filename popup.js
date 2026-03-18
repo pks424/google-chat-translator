@@ -14,6 +14,7 @@ const statusEl                   = document.getElementById('status');
 const setupBanner                = document.getElementById('setupBanner');
 const translationToneSelect      = document.getElementById('translationTone');
 const toneField                  = document.getElementById('toneField');
+const showFloatingBtnChk         = document.getElementById('showFloatingBtn');
 const glossaryList               = document.getElementById('glossaryList');
 const glossaryFromInput          = document.getElementById('glossaryFrom');
 const glossaryToInput            = document.getElementById('glossaryTo');
@@ -73,7 +74,7 @@ function updateProviderUI() {
 aiProviderSelect.addEventListener('change', updateProviderUI);
 
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'initialized'], (result) => {
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
@@ -85,6 +86,7 @@ chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoin
   aiProviderSelect.value           = result.aiProvider  || 'google_free';
   aiApiKeyInput.value              = result.aiApiKey    || '';
   translationToneSelect.value      = result.translationTone || 'natural';
+  showFloatingBtnChk.checked       = result.showFloatingBtn !== false;
   glossary                         = result.glossary    || [];
   renderGlossary();
   updateProviderUI();
@@ -113,6 +115,7 @@ saveBtn.addEventListener('click', () => {
     aiProvider:               provider,
     aiApiKey:                 aiApiKeyInput.value.trim(),
     translationTone:          translationToneSelect.value,
+    showFloatingBtn:          showFloatingBtnChk.checked,
     glossary:                 glossary,
     initialized:              true
   };
