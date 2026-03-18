@@ -11,6 +11,13 @@
   color: #1a1a1a;
   line-height: 1.5;
   font-family: 'Google Sans', sans-serif;
+  user-select: text;
+}
+.gct-translation[data-original] {
+  cursor: pointer;
+}
+.gct-translation[data-original]:hover {
+  background: #d2e3fc;
 }
 .gct-translation-icon {
   margin-right: 4px;
