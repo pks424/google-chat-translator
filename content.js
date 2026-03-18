@@ -62,33 +62,24 @@ function updateToggleButton() {
   btn.style.background = enabled ? '#1a73e8' : '#5f6368';
 }
 
-function ensureToggleButton() {
-  // 최상위 Gmail 프레임에서는 버튼 생성 안 함 (채팅 iframe에서만)
+// 플로팅 버튼: 설정에 따라 생성/제거 통합 함수
+function syncToggleButton(show) {
+  // 최상위 Gmail 프레임에서는 동작 안 함
   if (location.hostname === 'mail.google.com' && window === window.top) return;
 
-  // 설정에서 플로팅 버튼 비활성화 시 기존 버튼 제거
-  chrome.storage?.local?.get(['showFloatingBtn'], (r) => {
-    if (r?.showFloatingBtn === false) {
-      const existing = document.getElementById('gct-room-toggle');
-      if (existing) existing.remove();
-      return;
-    }
-    createToggleButton();
-  });
-}
+  const existing = document.getElementById('gct-room-toggle');
+  if (!show) {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return; // 이미 있으면 생성 안 함
 
-function createToggleButton() {
-  if (document.getElementById('gct-room-toggle')) return;
   const btn = document.createElement('button');
   btn.id = 'gct-room-toggle';
   btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:999999;padding:6px 12px;color:#fff;border:none;border-radius:20px;font-size:12px;font-family:"Google Sans",sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:background 0.2s;';
   btn.onclick = toggleRoomTranslate;
   document.body.appendChild(btn);
-  // 저장된 비활성 목록 불러오기
-  chrome.storage?.local?.get(['disabledRooms'], (r) => {
-    if (r?.disabledRooms) r.disabledRooms.forEach(id => disabledRooms.add(id));
-    updateToggleButton();
-  });
+  updateToggleButton();
 
   // Gmail: 부모 프레임 해시 변경 시 토글 상태 갱신
   try {
@@ -96,6 +87,15 @@ function createToggleButton() {
       window.parent.addEventListener('hashchange', () => updateToggleButton());
     }
   } catch (e) { /* cross-origin */ }
+}
+
+function ensureToggleButton() {
+  try {
+    chrome.storage?.local?.get(['showFloatingBtn', 'disabledRooms'], (r) => {
+      if (r?.disabledRooms) r.disabledRooms.forEach(id => disabledRooms.add(id));
+      syncToggleButton(r?.showFloatingBtn !== false);
+    });
+  } catch (e) { /* context invalidated */ }
 }
 
 // ─── 번역 캐시 (메모리 내, 최대 500건) ───
@@ -849,12 +849,7 @@ chrome.runtime?.onMessage?.addListener((msg) => {
 try {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.showFloatingBtn) {
-      const btn = document.getElementById('gct-room-toggle');
-      if (changes.showFloatingBtn.newValue === false) {
-        if (btn) btn.remove();
-      } else {
-        if (!btn) createToggleButton();
-      }
+      syncToggleButton(changes.showFloatingBtn.newValue !== false);
     }
   });
 } catch (e) { /* extension context invalidated */ }
