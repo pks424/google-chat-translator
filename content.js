@@ -131,6 +131,34 @@ function restoreGlossary(translated, placeholders) {
   return result;
 }
 
+// ─── 언어 자동 감지 (스크립트/문자 기반) ───
+function detectLanguageByScript(text) {
+  const cleaned = text.replace(/[\s\d\p{P}\p{S}]/gu, '');
+  if (!cleaned) return 'unknown';
+
+  let ko = 0, ja = 0, zhSimp = 0, zhTrad = 0, latin = 0, cyrillic = 0, arabic = 0, thai = 0;
+  for (const ch of cleaned) {
+    const code = ch.codePointAt(0);
+    if (code >= 0xAC00 && code <= 0xD7AF) ko++;        // 한글 음절
+    else if (code >= 0x3040 && code <= 0x30FF) ja++;    // 히라가나/가타카나
+    else if (code >= 0x4E00 && code <= 0x9FFF) zhSimp++;// CJK (중국어/한자)
+    else if (code >= 0x0041 && code <= 0x024F) latin++;  // 라틴
+    else if (code >= 0x0400 && code <= 0x04FF) cyrillic++;
+    else if (code >= 0x0600 && code <= 0x06FF) arabic++;
+    else if (code >= 0x0E00 && code <= 0x0E7F) thai++;
+  }
+
+  const total = cleaned.length;
+  if (ko / total > 0.3) return 'ko';
+  if (ja / total > 0.2) return 'ja';
+  if (zhSimp / total > 0.3) return 'zh-CN';
+  if (latin / total > 0.5) return 'latin'; // en/de/fr/es 등 구분 불가 → 'latin'
+  if (cyrillic / total > 0.3) return 'ru';
+  if (arabic / total > 0.3) return 'ar';
+  if (thai / total > 0.3) return 'th';
+  return 'unknown';
+}
+
 // 컨텍스트 수집: 현재 메시지 주변의 최근 메시지 텍스트
 function getConversationContext(msgElement, maxMessages = 3) {
   const allMessages = document.querySelectorAll('[data-message-id], div[jsname="bgckF"], [role="row"] [dir="auto"]');
@@ -569,9 +597,13 @@ async function translateIncomingMessage(msgElement) {
     const settings = await getSettings();
     if (!settings.autoTranslate) return;
 
+    // 사전 언어 감지: 이미 목표 언어면 API 호출 자체를 스킵
+    const preDetected = detectLanguageByScript(text);
+    if (preDetected === settings.targetLang) return;
+
     const { translated, detectedLang } = await googleTranslate(text, settings.targetLang, 'auto', msgElement);
 
-    // 이미 목표 언어이면 번역 표시 안 함
+    // API 감지 결과로도 이미 목표 언어이면 번역 표시 안 함
     if (detectedLang === settings.targetLang) return;
     if (!translated || translated.trim().toLowerCase() === text.toLowerCase()) return;
 
