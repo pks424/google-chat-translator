@@ -13,9 +13,22 @@ let roomTranslateEnabled = true;
 const disabledRooms = new Set();
 
 function getCurrentRoomId() {
-  // URL에서 채팅방 ID 추출
-  const match = location.href.match(/\/chat\/([^/?#]+)|\/space\/([^/?#]+)/);
-  return match ? (match[1] || match[2]) : location.href;
+  // 1. chat.google.com: /chat/ROOM_ID 또는 /space/ROOM_ID
+  const pathMatch = location.href.match(/\/chat\/([^/?#]+)|\/space\/([^/?#]+)/);
+  if (pathMatch) return pathMatch[1] || pathMatch[2];
+
+  // 2. Gmail 해시: #chat/space/ROOM_ID 또는 #chat/dm/USER_ID
+  const hashMatch = location.hash.match(/chat\/(?:space|dm)\/([^/?#&]+)/);
+  if (hashMatch) return hashMatch[1];
+
+  // 3. iframe 내부: 부모 프레임 URL에서 추출 시도
+  try {
+    const parentHash = window.parent?.location?.hash || '';
+    const parentMatch = parentHash.match(/chat\/(?:space|dm)\/([^/?#&]+)/);
+    if (parentMatch) return parentMatch[1];
+  } catch (e) { /* cross-origin iframe */ }
+
+  return location.href;
 }
 
 function isRoomTranslateEnabled() {
@@ -46,6 +59,9 @@ function updateToggleButton() {
 
 function ensureToggleButton() {
   if (document.getElementById('gct-room-toggle')) return;
+  // 최상위 Gmail 프레임에서는 버튼 생성 안 함 (채팅 iframe에서만)
+  if (location.hostname === 'mail.google.com' && window === window.top) return;
+
   const btn = document.createElement('button');
   btn.id = 'gct-room-toggle';
   btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:999999;padding:6px 12px;color:#fff;border:none;border-radius:20px;font-size:12px;font-family:"Google Sans",sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:background 0.2s;';
@@ -56,6 +72,13 @@ function ensureToggleButton() {
     if (r?.disabledRooms) r.disabledRooms.forEach(id => disabledRooms.add(id));
     updateToggleButton();
   });
+
+  // Gmail: 부모 프레임 해시 변경 시 토글 상태 갱신
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.addEventListener('hashchange', () => updateToggleButton());
+    }
+  } catch (e) { /* cross-origin */ }
 }
 
 // ─── 번역 캐시 (메모리 내, 최대 500건) ───
