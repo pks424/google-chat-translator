@@ -8,6 +8,29 @@ let isSendingTranslated = false; // 시뮬레이션 Enter 재진입 방지
 const attachedInputs = new WeakSet();
 const processingMessages = new WeakSet(); // 중복 처리 방지
 
+// ─── 번역 캐시 (메모리 내, 최대 500건) ───
+const translationCache = new Map();
+const CACHE_MAX_SIZE = 500;
+
+function getCacheKey(text, targetLang, sourceLang) {
+  return `${targetLang}|${sourceLang}|${text}`;
+}
+
+function getCachedTranslation(text, targetLang, sourceLang) {
+  const key = getCacheKey(text, targetLang, sourceLang);
+  return translationCache.get(key) || null;
+}
+
+function setCachedTranslation(text, targetLang, sourceLang, result) {
+  const key = getCacheKey(text, targetLang, sourceLang);
+  if (translationCache.size >= CACHE_MAX_SIZE) {
+    // 가장 오래된 항목 삭제
+    const firstKey = translationCache.keys().next().value;
+    translationCache.delete(firstKey);
+  }
+  translationCache.set(key, result);
+}
+
 // 설정 불러오기
 async function getSettings() {
   return new Promise((resolve) => {
@@ -167,26 +190,34 @@ async function googleTranslateCloudRetry(text, targetLang, sourceLang, apiKey) {
   return { translated, detectedLang };
 }
 
-// 번역 통합 함수: 설정된 AI 프로바이더에 따라 분기
+// 번역 통합 함수: 캐시 → AI 프로바이더 분기
 async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
+  // 캐시 확인
+  const cached = getCachedTranslation(text, targetLang, sourceLang);
+  if (cached) return cached;
+
   const settings = await getSettings();
+  let result;
 
   switch (settings.aiProvider) {
     case 'gemini':
-      if (settings.aiApiKey) return geminiTranslate(text, targetLang, sourceLang, settings.aiApiKey);
+      if (settings.aiApiKey) { result = await geminiTranslate(text, targetLang, sourceLang, settings.aiApiKey); break; }
       break;
     case 'claude':
-      if (settings.aiApiKey) return claudeTranslate(text, targetLang, sourceLang, settings.aiApiKey);
+      if (settings.aiApiKey) { result = await claudeTranslate(text, targetLang, sourceLang, settings.aiApiKey); break; }
       break;
     case 'openai':
-      if (settings.aiApiKey) return openaiTranslate(text, targetLang, sourceLang, settings.aiApiKey);
+      if (settings.aiApiKey) { result = await openaiTranslate(text, targetLang, sourceLang, settings.aiApiKey); break; }
       break;
     case 'google_cloud':
-      if (settings.cloudApiKey) return googleTranslateCloudRetry(text, targetLang, sourceLang, settings.cloudApiKey);
+      if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(text, targetLang, sourceLang, settings.cloudApiKey); break; }
       break;
   }
-  // 기본: 무료 Google 번역
-  return googleTranslateFree(text, targetLang, sourceLang);
+  if (!result) result = await googleTranslateFree(text, targetLang, sourceLang);
+
+  // 캐시 저장
+  setCachedTranslation(text, targetLang, sourceLang, result);
+  return result;
 }
 
 // Alt+T 수동 번역 (전송 없이 텍스트만 교체)
