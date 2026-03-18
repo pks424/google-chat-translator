@@ -15,6 +15,9 @@
     "https://api.anthropic.com/*",
     "https://api.openai.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -39,5 +42,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "commands": {
+    "toggle-translation": {
+      "suggested_key": { "default": "Alt+T" },
+      "description": "현재 채팅방 번역 ON/OFF 토글"
+    }
   }
 }

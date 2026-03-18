@@ -670,3 +670,8 @@ observeChat();
 setTimeout(() => { scanInputs(); processNewMessages(); }, 2000);
 console.log('[GCT] Google Chat 번역기 활성화 - chat.google.com + mail.google.com 지원');
 ensureToggleButton();
+
+// 단축키 메시지 수신 (background → content)
+chrome.runtime?.onMessage?.addListener((msg) => {
+  if (msg.action === 'toggleRoomTranslate') toggleRoomTranslate();
+});
