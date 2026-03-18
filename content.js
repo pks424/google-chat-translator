@@ -131,6 +131,25 @@ function restoreGlossary(translated, placeholders) {
   return result;
 }
 
+// 컨텍스트 수집: 현재 메시지 주변의 최근 메시지 텍스트
+function getConversationContext(msgElement, maxMessages = 3) {
+  const allMessages = document.querySelectorAll('[data-message-id], div[jsname="bgckF"], [role="row"] [dir="auto"]');
+  const msgs = Array.from(allMessages);
+  const idx = msgs.indexOf(msgElement);
+  if (idx <= 0) return '';
+
+  const context = [];
+  const start = Math.max(0, idx - maxMessages);
+  for (let i = start; i < idx; i++) {
+    const text = (msgs[i].innerText || msgs[i].textContent || '').trim();
+    // 번역 뱃지 제외
+    if (text && !msgs[i].classList.contains('gct-translation') && text.length < 500) {
+      context.push(text);
+    }
+  }
+  return context.length > 0 ? context.join('\n') : '';
+}
+
 // 톤 프롬프트 생성
 function getToneInstruction(tone) {
   const toneMap = {
@@ -194,10 +213,11 @@ function detectLangFromResult(text, translated, targetLang, sourceLang) {
 }
 
 // Gemini API 번역
-async function geminiTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural') {
+async function geminiTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural', context = '') {
   const targetName = LANG_NAMES[targetLang] || targetLang;
   const toneInst = getToneInstruction(tone);
-  const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${text}`;
+  const contextInst = context ? `Previous messages for context:\n${context}\n\nNow translate this message:\n` : '';
+  const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${contextInst}${text}`;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   const response = await fetchWithRetry(() => fetch(url, {
@@ -212,10 +232,11 @@ async function geminiTranslate(text, targetLang, sourceLang, apiKey, tone = 'nat
 }
 
 // Claude API 번역
-async function claudeTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural') {
+async function claudeTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural', context = '') {
   const targetName = LANG_NAMES[targetLang] || targetLang;
   const toneInst = getToneInstruction(tone);
-  const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${text}`;
+  const contextInst = context ? `Previous messages for context:\n${context}\n\nNow translate this message:\n` : '';
+  const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${contextInst}${text}`;
 
   const response = await fetchWithRetry(() => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -238,9 +259,10 @@ async function claudeTranslate(text, targetLang, sourceLang, apiKey, tone = 'nat
 }
 
 // OpenAI API 번역
-async function openaiTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural') {
+async function openaiTranslate(text, targetLang, sourceLang, apiKey, tone = 'natural', context = '') {
   const targetName = LANG_NAMES[targetLang] || targetLang;
   const toneInst = getToneInstruction(tone);
+  const contextInst = context ? ` Use this conversation context for better translation:\n${context}` : '';
 
   const response = await fetchWithRetry(() => fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -251,7 +273,7 @@ async function openaiTranslate(text, targetLang, sourceLang, apiKey, tone = 'nat
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: `You are a translator. Translate the user's text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.` },
+        { role: 'system', content: `You are a translator. Translate the user's text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.${contextInst}` },
         { role: 'user', content: text }
       ],
       max_tokens: 1024
@@ -278,7 +300,7 @@ async function googleTranslateCloudRetry(text, targetLang, sourceLang, apiKey) {
 }
 
 // 번역 통합 함수: 캐시 → 용어 사전 → AI 프로바이더 분기
-async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
+async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto', msgElement = null) {
   // 캐시 확인
   const cached = getCachedTranslation(text, targetLang, sourceLang);
   if (cached) return cached;
@@ -289,16 +311,20 @@ async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto') {
   const { text: processedText, placeholders } = applyGlossary(text, settings.glossary);
 
   const tone = settings.translationTone || 'natural';
+  // AI 엔진일 때만 컨텍스트 수집
+  const isAI = ['gemini', 'claude', 'openai'].includes(settings.aiProvider);
+  const context = (isAI && msgElement) ? getConversationContext(msgElement) : '';
+
   let result;
   switch (settings.aiProvider) {
     case 'gemini':
-      if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone); break; }
+      if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
       break;
     case 'claude':
-      if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone); break; }
+      if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
       break;
     case 'openai':
-      if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone); break; }
+      if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
       break;
     case 'google_cloud':
       if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(processedText, targetLang, sourceLang, settings.cloudApiKey); break; }
@@ -543,7 +569,7 @@ async function translateIncomingMessage(msgElement) {
     const settings = await getSettings();
     if (!settings.autoTranslate) return;
 
-    const { translated, detectedLang } = await googleTranslate(text, settings.targetLang, 'auto');
+    const { translated, detectedLang } = await googleTranslate(text, settings.targetLang, 'auto', msgElement);
 
     // 이미 목표 언어이면 번역 표시 안 함
     if (detectedLang === settings.targetLang) return;
