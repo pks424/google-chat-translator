@@ -43,9 +43,11 @@ function toggleRoomTranslate() {
   } else {
     disabledRooms.add(roomId);
     showToast('이 채팅방 번역 OFF', 'error', 2000);
+    // OFF 시 기존 번역 뱃지 즉시 제거
+    document.querySelectorAll('.gct-translation').forEach(el => el.remove());
+    document.querySelectorAll('[data-gct-done]').forEach(el => delete el.dataset.gctDone);
   }
   updateToggleButton();
-  // 비활성 목록을 storage에 저장
   chrome.storage?.local?.set({ disabledRooms: Array.from(disabledRooms) });
 }
 
