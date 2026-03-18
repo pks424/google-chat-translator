@@ -853,7 +853,7 @@ try {
       if (changes.showFloatingBtn.newValue === false) {
         if (btn) btn.remove();
       } else {
-        if (!btn) ensureToggleButton();
+        if (!btn) createToggleButton();
       }
     }
   });
