@@ -40,6 +40,9 @@ function toggleRoomTranslate() {
   if (disabledRooms.has(roomId)) {
     disabledRooms.delete(roomId);
     showToast('이 채팅방 번역 ON', 'info', 2000);
+    // 관찰 목록 초기화 → 화면 내 메시지 재번역
+    observedElements = new WeakSet();
+    processNewMessages();
   } else {
     disabledRooms.add(roomId);
     showToast('이 채팅방 번역 OFF', 'error', 2000);
@@ -716,7 +719,7 @@ function findOutgoingElements() {
 // ─── IntersectionObserver: 뷰포트에 보이는 메시지만 번역 ───
 const translateQueue = [];
 let isQueueProcessing = false;
-const observedElements = new WeakSet();
+let observedElements = new WeakSet();
 
 const visibilityObserver = new IntersectionObserver((entries) => {
   for (const entry of entries) {
