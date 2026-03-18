@@ -825,13 +825,15 @@ chrome.runtime?.onMessage?.addListener((msg) => {
 });
 
 // 설정 변경 실시간 반영 (플로팅 버튼 표시/숨김)
-chrome.storage?.onChanged?.addListener((changes) => {
-  if (changes.showFloatingBtn) {
-    if (changes.showFloatingBtn.newValue === false) {
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.showFloatingBtn) {
       const btn = document.getElementById('gct-room-toggle');
-      if (btn) btn.remove();
-    } else {
-      ensureToggleButton();
+      if (changes.showFloatingBtn.newValue === false) {
+        if (btn) btn.remove();
+      } else {
+        if (!btn) ensureToggleButton();
+      }
     }
-  }
-});
+  });
+} catch (e) { /* extension context invalidated */ }
