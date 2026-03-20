@@ -567,7 +567,7 @@ function showToast(message, type = 'info', duration = 3000) {
 // [수신] 상대방 메시지 자동 번역
 // ─────────────────────────────────────────
 
-function createTranslationBadge(translatedText, isError = false, originalText = '') {
+function createTranslationBadge(translatedText, isError = false) {
   const badge = document.createElement('div');
   badge.className = 'gct-translation' + (isError ? ' gct-error' : '');
   badge.textContent = translatedText;
@@ -576,33 +576,6 @@ function createTranslationBadge(translatedText, isError = false, originalText = 
   icon.textContent = isError ? '⚠️ ' : '🌐 ';
   badge.prepend(icon);
 
-  // 원문/번역 토글 (클릭)
-  if (!isError && originalText) {
-    badge.dataset.translated = translatedText;
-    badge.dataset.original = originalText;
-    badge.dataset.showingTranslated = 'true';
-    badge.style.cursor = 'pointer';
-    badge.title = '클릭하여 원문/번역 전환';
-    badge.addEventListener('click', () => {
-      const showing = badge.dataset.showingTranslated === 'true';
-      const iconEl = badge.querySelector('.gct-translation-icon');
-      if (showing) {
-        badge.textContent = badge.dataset.original;
-        badge.dataset.showingTranslated = 'false';
-        const origIcon = document.createElement('span');
-        origIcon.className = 'gct-translation-icon';
-        origIcon.textContent = '📝 ';
-        badge.prepend(origIcon);
-      } else {
-        badge.textContent = badge.dataset.translated;
-        badge.dataset.showingTranslated = 'true';
-        const transIcon = document.createElement('span');
-        transIcon.className = 'gct-translation-icon';
-        transIcon.textContent = '🌐 ';
-        badge.prepend(transIcon);
-      }
-    });
-  }
   return badge;
 }
 
@@ -648,7 +621,7 @@ async function translateIncomingMessage(msgElement, isOutgoing = false) {
     if (detectedLang === settings.targetLang) return;
     if (!translated || translated.trim().toLowerCase() === text.toLowerCase()) return;
 
-    const badge = createTranslationBadge(translated, false, text);
+    const badge = createTranslationBadge(translated);
     msgElement.appendChild(badge);
   } catch (err) {
     const msg = err.message || '';
