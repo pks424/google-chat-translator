@@ -122,17 +122,18 @@ function setCachedTranslation(text, targetLang, sourceLang, result) {
 }
 
 // 설정 불러오기
-const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural', showFloatingBtn: true };
+const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, autoOutgoing: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural', showFloatingBtn: true };
 async function getSettings() {
   return new Promise((resolve) => {
     if (!chrome.runtime?.id) return resolve({ ...DEFAULT_SETTINGS });
     try {
-      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn'], (result) => {
+      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'autoOutgoing', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn'], (result) => {
         if (chrome.runtime.lastError) return resolve({ ...DEFAULT_SETTINGS });
         resolve({
           targetLang:               result.targetLang    || 'ko',
           outLang:                  result.outLang       || 'en',
           autoTranslate:            result.autoTranslate !== false,
+          autoOutgoing:             result.autoOutgoing !== false,
           showOutgoingTranslation:  result.showOutgoingTranslation === true,
           cloudApiKey:              result.cloudApiKey   || '',
           aiProvider:               result.aiProvider    || 'google_free',
@@ -505,6 +506,11 @@ function attachToInputBox(inputBox) {
     if (e.key !== 'Enter' || e.shiftKey || isTranslating) return;
     // 채팅방별 번역 OFF면 원본 전송
     if (!isRoomTranslateEnabled()) return;
+
+    // 발신 자동 번역이 OFF면 번역 없이 그대로 전송
+    const settings = await getSettings();
+    if (!settings.autoOutgoing) return;
+
     const text = (inputBox.innerText || inputBox.textContent).trim();
     if (!text) return;
 
@@ -522,7 +528,6 @@ function attachToInputBox(inputBox) {
     };
 
     try {
-      const settings = await getSettings();
       const { translated, detectedLang } = await googleTranslate(text, settings.outLang, 'auto');
       if (detectedLang !== settings.outLang) {
         replaceInputText(inputBox, translated);

@@ -14,6 +14,7 @@ const statusEl                   = document.getElementById('status');
 const setupBanner                = document.getElementById('setupBanner');
 const translationToneSelect      = document.getElementById('translationTone');
 const toneField                  = document.getElementById('toneField');
+const autoOutgoingChk            = document.getElementById('autoOutgoing');
 const showFloatingBtnChk         = document.getElementById('showFloatingBtn');
 const glossaryList               = document.getElementById('glossaryList');
 const glossaryFromInput          = document.getElementById('glossaryFrom');
@@ -74,13 +75,14 @@ function updateProviderUI() {
 aiProviderSelect.addEventListener('change', updateProviderUI);
 
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn', 'initialized'], (result) => {
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'autoOutgoing', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
   outLangSelect.value              = result.outLang    || 'en';
   targetLangSelect.value           = result.targetLang || 'ko';
   autoTranslateChk.checked         = result.autoTranslate !== false;
+  autoOutgoingChk.checked          = result.autoOutgoing !== false;
   showOutgoingTranslationChk.checked = result.showOutgoingTranslation === true;
   cloudApiKeyInput.value           = result.cloudApiKey || '';
   aiProviderSelect.value           = result.aiProvider  || 'google_free';
@@ -110,6 +112,7 @@ saveBtn.addEventListener('click', () => {
     outLang:                  outLangSelect.value,
     targetLang:               targetLangSelect.value,
     autoTranslate:            autoTranslateChk.checked,
+    autoOutgoing:             autoOutgoingChk.checked,
     showOutgoingTranslation:  showOutgoingTranslationChk.checked,
     cloudApiKey:              cloudApiKeyInput.value.trim(),
     aiProvider:               provider,
