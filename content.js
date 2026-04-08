@@ -507,13 +507,10 @@ function attachToInputBox(inputBox) {
     // 채팅방별 번역 OFF면 원본 전송
     if (!isRoomTranslateEnabled()) return;
 
-    // 발신 자동 번역이 OFF면 번역 없이 그대로 전송
-    const settings = await getSettings();
-    if (!settings.autoOutgoing) return;
-
     const text = (inputBox.innerText || inputBox.textContent).trim();
     if (!text) return;
 
+    // preventDefault는 반드시 동기적으로 먼저 호출 (async 이후에는 효과 없음)
     e.preventDefault();
     e.stopImmediatePropagation();
     isTranslating = true;
@@ -528,6 +525,13 @@ function attachToInputBox(inputBox) {
     };
 
     try {
+      const settings = await getSettings();
+      // 발신 자동 번역 OFF면 번역 없이 그대로 전송
+      if (!settings.autoOutgoing) {
+        isTranslating = false;
+        sendEnter();
+        return;
+      }
       const { translated, detectedLang } = await googleTranslate(text, settings.outLang, 'auto');
       if (detectedLang !== settings.outLang) {
         replaceInputText(inputBox, translated);
