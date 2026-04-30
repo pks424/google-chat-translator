@@ -62,12 +62,38 @@ function updateToggleButton() {
   btn.style.background = enabled ? '#1a73e8' : '#5f6368';
 }
 
+// 현재 프레임이 채팅 컨텍스트인지 판별
+function isChatContext() {
+  // chat.google.com은 항상 채팅
+  if (location.hostname === 'chat.google.com') return true;
+
+  // mail.google.com (Gmail 내장 Chat)
+  if (location.hostname === 'mail.google.com') {
+    // 최상위 Gmail 프레임은 채팅 영역이 아님
+    if (window === window.top) return false;
+
+    // 부모 URL 해시에 #chat/space 또는 #chat/dm이 있을 때만 채팅 컨텍스트
+    try {
+      const parentHash = window.parent?.location?.hash || '';
+      return /#?chat\/(space|dm)\//.test(parentHash);
+    } catch (e) {
+      // cross-origin: 채팅 아닌 다른 iframe(Meet, 광고 등)
+      return false;
+    }
+  }
+  return false;
+}
+
 // 플로팅 버튼: 설정에 따라 생성/제거 통합 함수
 function syncToggleButton(show) {
-  // 최상위 Gmail 프레임에서는 동작 안 함
-  if (location.hostname === 'mail.google.com' && window === window.top) return;
-
   const existing = document.getElementById('gct-room-toggle');
+
+  // 채팅 컨텍스트가 아니면 무조건 제거
+  if (!isChatContext()) {
+    if (existing) existing.remove();
+    return;
+  }
+
   if (!show) {
     if (existing) existing.remove();
     return;
@@ -81,10 +107,15 @@ function syncToggleButton(show) {
   document.body.appendChild(btn);
   updateToggleButton();
 
-  // Gmail: 부모 프레임 해시 변경 시 토글 상태 갱신
+  // Gmail: 부모 프레임 해시 변경 시 채팅 컨텍스트 재판별 + 토글 상태 갱신
   try {
     if (window.parent && window.parent !== window) {
-      window.parent.addEventListener('hashchange', () => updateToggleButton());
+      window.parent.addEventListener('hashchange', () => {
+        // 채팅 → 받은편지함 등으로 이동 시 버튼 제거, 다시 채팅으로 오면 재생성
+        chrome.storage?.local?.get(['showFloatingBtn'], (r) => {
+          syncToggleButton(r?.showFloatingBtn !== false);
+        });
+      });
     }
   } catch (e) { /* cross-origin */ }
 }
