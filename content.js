@@ -343,8 +343,6 @@ async function googleTranslateFree(text, targetLang = 'en', sourceLang = 'auto')
   return { translated, detectedLang };
 }
 
-// 공통 언어 이름 매핑
-const LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', 'zh-CN': '简体中文', 'zh-TW': '繁體中文', de: 'Deutsch', fr: 'Français', es: 'Español' };
 
 // AI 번역 공통: rate limit 자동 재시도 (최대 3회, 지수 백오프)
 async function fetchWithRetry(fetchFn, maxRetries = 3) {
