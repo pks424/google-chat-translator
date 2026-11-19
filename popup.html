@@ -210,6 +210,16 @@
         <option value="ko">한국어 (번역 안 함)</option>
       </select>
     </div>
+    <div class="toggle-row">
+      <div>
+        <div class="label-text">채팅방마다 상대 언어로 전송</div>
+        <div class="label-sub">상대 메시지 언어를 방별로 기억해 그 언어로 번역 (모르면 위 언어)</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoRoomLang" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
 
     <hr class="divider">
 
@@ -259,6 +269,16 @@
     <div class="field" id="cloudKeyField" style="display:none;">
       <label><span class="icon">☁️</span> Google Cloud Translation API 키</label>
       <input type="password" id="cloudApiKey" placeholder="AIza..." style="width:100%;padding:8px 10px;border:1px solid #dadce0;border-radius:6px;font-size:13px;outline:none;">
+    </div>
+    <div class="toggle-row" id="fallbackField" style="display:none;">
+      <div>
+        <div class="label-text">실패 시 Google 무료 번역으로 대체</div>
+        <div class="label-sub">켜면 실패한 문장은 Google 번역으로도 전송됩니다</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="fallbackFree">
+        <span class="slider"></span>
+      </label>
     </div>
 
     <div class="field" id="toneField" style="display:none;">

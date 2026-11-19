@@ -20,6 +20,9 @@ const glossaryList               = document.getElementById('glossaryList');
 const glossaryFromInput          = document.getElementById('glossaryFrom');
 const glossaryToInput            = document.getElementById('glossaryTo');
 const glossaryAddBtn             = document.getElementById('glossaryAddBtn');
+const autoRoomLangChk            = document.getElementById('autoRoomLang');
+const fallbackFreeChk            = document.getElementById('fallbackFree');
+const fallbackField              = document.getElementById('fallbackField');
 
 // ─── 용어 사전 관리 ───
 let glossary = [];
@@ -29,7 +32,15 @@ function renderGlossary() {
   glossary.forEach((entry, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#f8f9fa;border-radius:4px;font-size:12px;';
-    row.innerHTML = `<span style="flex:1;"><b>${entry.from}</b> → ${entry.to || '<i>유지</i>'}</span>`;
+    // 사용자 입력은 textContent 로만 넣는다 (innerHTML 금지 — 입력값의 HTML 실행 방지)
+    const label = document.createElement('span');
+    label.style.flex = '1';
+    const fromEl = document.createElement('b');
+    fromEl.textContent = entry.from;
+    const toEl = document.createElement(entry.to ? 'span' : 'i');
+    toEl.textContent = entry.to || '유지';
+    label.append(fromEl, ' → ', toEl);
+    row.appendChild(label);
     const delBtn = document.createElement('button');
     delBtn.textContent = '✕';
     delBtn.style.cssText = 'background:none;border:none;color:#d93025;cursor:pointer;font-size:14px;padding:0 4px;';
@@ -64,6 +75,8 @@ function updateProviderUI() {
   cloudKeyField.style.display = config.showCloud ? 'block' : 'none';
   // AI 엔진일 때만 톤 설정 표시
   toneField.style.display = (provider === 'gemini' || provider === 'claude' || provider === 'openai') ? 'block' : 'none';
+  // 대체 번역은 키가 필요한 엔진에서만 의미 있음
+  fallbackField.style.display = provider !== 'google_free' ? '' : 'none';
 
   if (config.showKey) {
     apiKeyLabel.textContent       = config.label;
@@ -75,7 +88,7 @@ function updateProviderUI() {
 aiProviderSelect.addEventListener('change', updateProviderUI);
 
 // 저장된 설정 불러오기
-chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'autoOutgoing', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn', 'initialized'], (result) => {
+chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'autoOutgoing', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn', 'autoRoomLang', 'fallbackFree', 'initialized'], (result) => {
   if (!result.initialized) {
     setupBanner.classList.add('visible');
   }
@@ -89,7 +102,9 @@ chrome.storage.local.get(['outLang', 'targetLang', 'autoTranslate', 'autoOutgoin
   aiApiKeyInput.value              = result.aiApiKey    || '';
   translationToneSelect.value      = result.translationTone || 'natural';
   showFloatingBtnChk.checked       = result.showFloatingBtn !== false;
-  glossary                         = result.glossary    || [];
+  autoRoomLangChk.checked          = result.autoRoomLang !== false;
+  fallbackFreeChk.checked          = result.fallbackFree === true;
+  glossary                        = result.glossary    || [];
   renderGlossary();
   updateProviderUI();
 });
@@ -119,7 +134,9 @@ saveBtn.addEventListener('click', () => {
     aiApiKey:                 aiApiKeyInput.value.trim(),
     translationTone:          translationToneSelect.value,
     showFloatingBtn:          showFloatingBtnChk.checked,
-    glossary:                 glossary,
+    autoRoomLang:             autoRoomLangChk.checked,
+    fallbackFree:             fallbackFreeChk.checked,
+    glossary:                glossary,
     initialized:              true
   };
 

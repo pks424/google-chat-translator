@@ -106,8 +106,14 @@ function syncToggleButton(show) {
   btn.onclick = toggleRoomTranslate;
   document.body.appendChild(btn);
   updateToggleButton();
+  watchParentHash();
+}
 
-  // Gmail: 부모 프레임 해시 변경 시 채팅 컨텍스트 재판별 + 토글 상태 갱신
+// Gmail: 부모 프레임 해시 변경 시 채팅 컨텍스트 재판별 + 토글 상태 갱신
+// 버튼을 다시 만들 때마다 리스너가 쌓이지 않도록 한 번만 등록
+let parentHashWatched = false;
+function watchParentHash() {
+  if (parentHashWatched) return;
   try {
     if (window.parent && window.parent !== window) {
       window.parent.addEventListener('hashchange', () => {
@@ -116,14 +122,43 @@ function syncToggleButton(show) {
           syncToggleButton(r?.showFloatingBtn !== false);
         });
       });
+      parentHashWatched = true;
     }
   } catch (e) { /* cross-origin */ }
 }
 
+// ─── 채팅방별 발신 언어: 상대 메시지에서 감지한 언어를 방마다 기억 ───
+const ROOM_LANG_MAX = 200;
+const roomLangs = {};
+
+// 발신 번역 언어: 방에서 기억한 언어 → 없으면 설정의 발신 언어
+function getRoomOutLang(settings) {
+  // 자동 OFF 이거나 발신 언어를 '번역 안 함'(내 언어)으로 둔 경우는 설정 그대로
+  if (!settings.autoRoomLang || settings.outLang === settings.targetLang) return settings.outLang;
+  return roomLangs[getCurrentRoomId()] || settings.outLang;
+}
+
+function rememberRoomLang(lang, settings) {
+  if (!settings.autoRoomLang || !LANG_NAMES[lang] || lang === settings.targetLang) return;
+  const roomId = getCurrentRoomId();
+  if (roomLangs[roomId] === lang) return;
+  delete roomLangs[roomId];          // 최근에 바뀐 방을 뒤로 보내 오래된 방부터 정리
+  roomLangs[roomId] = lang;
+  const keys = Object.keys(roomLangs);
+  if (keys.length > ROOM_LANG_MAX) delete roomLangs[keys[0]];
+  try { chrome.storage?.local?.set({ roomLangs }); } catch (e) { /* context invalidated */ }
+  // 오류·대체 번역 알림이 떠 있으면 덮어쓰지 않음
+  // (show 클래스는 다음 프레임에 붙으므로 표시 타이머로 판정)
+  if (!(document.querySelector('.gct-toast.error') && toastTimer)) {
+    showToast(`이 채팅방 발신 언어: ${LANG_NAMES[lang]}`, 'info', 2500);
+  }
+}
+
 function ensureToggleButton() {
   try {
-    chrome.storage?.local?.get(['showFloatingBtn', 'disabledRooms'], (r) => {
+    chrome.storage?.local?.get(['showFloatingBtn', 'disabledRooms', 'roomLangs'], (r) => {
       if (r?.disabledRooms) r.disabledRooms.forEach(id => disabledRooms.add(id));
+      if (r?.roomLangs) Object.assign(roomLangs, r.roomLangs);
       syncToggleButton(r?.showFloatingBtn !== false);
     });
   } catch (e) { /* context invalidated */ }
@@ -153,12 +188,12 @@ function setCachedTranslation(text, targetLang, sourceLang, result) {
 }
 
 // 설정 불러오기
-const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, autoOutgoing: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural', showFloatingBtn: true };
+const DEFAULT_SETTINGS = { targetLang: 'ko', outLang: 'en', autoTranslate: true, autoOutgoing: true, showOutgoingTranslation: false, cloudApiKey: '', aiProvider: 'google_free', aiApiKey: '', glossary: [], translationTone: 'natural', showFloatingBtn: true, autoRoomLang: true, fallbackFree: false };
 async function getSettings() {
   return new Promise((resolve) => {
     if (!chrome.runtime?.id) return resolve({ ...DEFAULT_SETTINGS });
     try {
-      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'autoOutgoing', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn'], (result) => {
+      chrome.storage.local.get(['targetLang', 'outLang', 'autoTranslate', 'autoOutgoing', 'showOutgoingTranslation', 'cloudApiKey', 'aiProvider', 'aiApiKey', 'glossary', 'translationTone', 'showFloatingBtn', 'autoRoomLang', 'fallbackFree'], (result) => {
         if (chrome.runtime.lastError) return resolve({ ...DEFAULT_SETTINGS });
         resolve({
           targetLang:               result.targetLang    || 'ko',
@@ -171,7 +206,9 @@ async function getSettings() {
           aiApiKey:                 result.aiApiKey      || '',
           glossary:                 result.glossary      || [],
           translationTone:          result.translationTone || 'natural',
-          showFloatingBtn:          result.showFloatingBtn !== false
+          showFloatingBtn:          result.showFloatingBtn !== false,
+          autoRoomLang:             result.autoRoomLang !== false,   // 기본 ON
+          fallbackFree:             result.fallbackFree === true     // 기본 OFF (켜야만 Google 무료로 전송)
         });
       });
     } catch (e) {
@@ -403,6 +440,9 @@ async function googleTranslateCloudRetry(text, targetLang, sourceLang, apiKey) {
   return { translated, detectedLang };
 }
 
+// 직전 번역이 AI/Cloud 엔진 호출이었는지 (대체 번역·캐시·무료 번역이면 false)
+let lastCallUsedEngine = false;
+
 // 번역 통합 함수: 캐시 → 용어 사전 → AI 프로바이더 분기
 async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto', msgElement = null) {
   // 캐시 확인
@@ -420,20 +460,31 @@ async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto', msg
   const context = (isAI && msgElement) ? getConversationContext(msgElement) : '';
 
   let result;
-  switch (settings.aiProvider) {
-    case 'gemini':
-      if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
-      break;
-    case 'claude':
-      if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
-      break;
-    case 'openai':
-      if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
-      break;
-    case 'google_cloud':
-      if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(processedText, targetLang, sourceLang, settings.cloudApiKey); break; }
-      break;
+  let fellBack = false;
+  try {
+    switch (settings.aiProvider) {
+      case 'gemini':
+        if (settings.aiApiKey) { result = await geminiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
+        break;
+      case 'claude':
+        if (settings.aiApiKey) { result = await claudeTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
+        break;
+      case 'openai':
+        if (settings.aiApiKey) { result = await openaiTranslate(processedText, targetLang, sourceLang, settings.aiApiKey, tone, context); break; }
+        break;
+      case 'google_cloud':
+        if (settings.cloudApiKey) { result = await googleTranslateCloudRetry(processedText, targetLang, sourceLang, settings.cloudApiKey); break; }
+        break;
+    }
+  } catch (err) {
+    // 'AI 실패 시 무료 번역 대체'를 켠 경우에만 Google 무료 번역으로 넘긴다
+    if (!settings.fallbackFree) throw err;
+    notifyFallback(settings.aiProvider, err);
+    result = await googleTranslateFree(processedText, targetLang, sourceLang);
+    fellBack = true;
   }
+  // AI/Cloud 엔진으로 실제 번역했을 때만 큐 대기(속도 제한 회피)가 필요함
+  lastCallUsedEngine = !!result && !fellBack;
   if (!result) result = await googleTranslateFree(processedText, targetLang, sourceLang);
 
   // 용어 사전 복원
@@ -441,9 +492,19 @@ async function googleTranslate(text, targetLang = 'en', sourceLang = 'auto', msg
     result = { ...result, translated: restoreGlossary(result.translated, placeholders) };
   }
 
-  // 캐시 저장
-  setCachedTranslation(text, targetLang, sourceLang, result);
+  // 캐시 저장 (대체 번역은 저장하지 않음 → 키·크레딧 복구 후 다시 AI 로 번역)
+  if (!fellBack) setCachedTranslation(text, targetLang, sourceLang, result);
   return result;
+}
+
+// 대체 번역 알림 (메시지마다 뜨지 않도록 1분에 한 번)
+const PROVIDER_NAMES = { google_cloud: 'Google Cloud', gemini: 'Gemini', claude: 'Claude', openai: 'ChatGPT' };
+let lastFallbackToastAt = 0;
+function notifyFallback(provider, err) {
+  console.warn('[GCT] 번역 엔진 실패 → Google 무료 번역으로 대체:', err.message);
+  if (Date.now() - lastFallbackToastAt < 60000) return;
+  lastFallbackToastAt = Date.now();
+  showToast(`⚠️ ${PROVIDER_NAMES[provider] || provider} 번역 실패 → Google 무료 번역으로 대체 (${err.message})`, 'error', 5000);
 }
 
 // Alt+T 수동 번역 (전송 없이 텍스트만 교체)
@@ -455,8 +516,9 @@ async function handleOutgoingTranslate() {
   isTranslating = true;
   try {
     const settings = await getSettings();
-    const { translated, detectedLang } = await googleTranslate(text, settings.outLang, 'auto');
-    if (detectedLang !== settings.outLang && translated) {
+    const outLang = getRoomOutLang(settings);
+    const { translated, detectedLang } = await googleTranslate(text, outLang, 'auto');
+    if (detectedLang !== outLang && translated) {
       replaceInputText(currentInputBox, translated);
     }
   } catch (err) {
@@ -566,12 +628,14 @@ function attachToInputBox(inputBox) {
         sendEnter();
         return;
       }
-      const { translated, detectedLang } = await googleTranslate(text, settings.outLang, 'auto');
-      if (detectedLang !== settings.outLang) {
+      const outLang = getRoomOutLang(settings);
+      const { translated, detectedLang } = await googleTranslate(text, outLang, 'auto');
+      if (detectedLang !== outLang) {
         replaceInputText(inputBox, translated);
       }
     } catch (err) {
       console.error('[GCT] 자동 번역 오류:', err);
+      showToast('⚠️ 발신 번역 실패 - 원문 그대로 전송했습니다', 'error', 4000);
     } finally {
       isTranslating = false;
       setTimeout(sendEnter, 80);
@@ -666,11 +730,18 @@ async function translateIncomingMessage(msgElement, isOutgoing = false) {
 
     const badge = createTranslationBadge(translated);
     msgElement.appendChild(badge);
+
+    // 상대 메시지 언어를 이 방의 발신 언어로 기억 (API 감지값 우선, 없으면 문자 기반 감지값)
+    if (!isOutgoing) rememberRoomLang(LANG_NAMES[detectedLang] ? detectedLang : preDetected, settings);
   } catch (err) {
     const msg = err.message || '';
     if (msg.includes('rate limit') || msg.includes('429')) {
       showToast('⚠️ API 사용량 초과 - 잠시 후 자동 재시도됩니다', 'error', 3000);
-      setTimeout(() => { delete msgElement.dataset.gctDone; }, 30000);
+      // 30초 뒤 표시를 지우고 다시 관찰 → 화면에 보이면 재번역 (unobserve 된 상태라 재등록 필요)
+      setTimeout(() => {
+        delete msgElement.dataset.gctDone;
+        if (msgElement.isConnected) visibilityObserver.observe(msgElement);
+      }, 30000);
     } else if (msg.includes('401') || msg.includes('403')) {
       showToast('⚠️ API 키 인증 실패 - 팝업에서 키를 확인하세요', 'error', 4000);
       console.log('[GCT] API 인증 오류:', msg);
@@ -792,8 +863,10 @@ async function processTranslateQueue() {
       const el = translateQueue.shift();
       if (el.dataset.gctDone) continue;
       const isOutgoing = el.dataset.gctOutgoing === '1';
+      lastCallUsedEngine = false;
       await translateIncomingMessage(el, isOutgoing);
-      if (delay && translateQueue.length > 0) await new Promise(r => setTimeout(r, delay));
+      // 실제로 AI 엔진을 호출했을 때만 대기 (대체 번역·캐시·건너뜀이면 바로 다음 메시지)
+      if (delay && lastCallUsedEngine && translateQueue.length > 0) await new Promise(r => setTimeout(r, delay));
     }
   } finally {
     isQueueProcessing = false;
@@ -829,23 +902,26 @@ function processNewMessages() {
 // ─────────────────────────────────────────
 
 function scanInputs() {
-  const all = document.querySelectorAll('[contenteditable="true"]');
-  let attached = 0;
-  all.forEach((el) => {
-    if (isChatInput(el)) {
+  document.querySelectorAll('[contenteditable="true"]').forEach((el) => {
+    if (!attachedInputs.has(el) && isChatInput(el)) {
       attachToInputBox(el);
-      attached++;
+      console.log('[GCT] 채팅 입력창 연결');
     }
   });
-  if (all.length > 0) {
-    console.log(`[GCT] contenteditable 요소 ${all.length}개 발견, 채팅 입력 감지: ${attached}개`);
-  }
 }
 
+// DOM 변경이 연달아 와도 150ms에 한 번만 검사 (변경마다 전체 검색하던 부하 제거)
+const SCAN_INTERVAL_MS = 150;
+let scanScheduled = false;
 function observeChat() {
   const observer = new MutationObserver(() => {
-    scanInputs();
-    processNewMessages();
+    if (scanScheduled) return;
+    scanScheduled = true;
+    setTimeout(() => {
+      scanScheduled = false;
+      scanInputs();
+      processNewMessages();
+    }, SCAN_INTERVAL_MS);
   });
   observer.observe(document.body, { childList: true, subtree: true });
 }
@@ -866,6 +942,10 @@ try {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.showFloatingBtn) {
       syncToggleButton(changes.showFloatingBtn.newValue !== false);
+    }
+    // 다른 탭·프레임에서 기억한 방 언어도 합침 (덮어써서 잃지 않도록)
+    if (area === 'local' && changes.roomLangs?.newValue) {
+      Object.assign(roomLangs, changes.roomLangs.newValue);
     }
   });
 } catch (e) { /* extension context invalidated */ }
