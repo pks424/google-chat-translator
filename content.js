@@ -129,6 +129,7 @@ function watchParentHash() {
 
 // ─── 채팅방별 발신 언어: 상대 메시지에서 감지한 언어를 방마다 기억 ───
 const ROOM_LANG_MAX = 200;
+const ROOM_LANG_MIN_LATIN = 10; // 라틴 문자 메시지는 공백 제외 10자 이상일 때만 방 언어로 기억
 const roomLangs = {};
 
 // 발신 번역 언어: 방에서 기억한 언어 → 없으면 설정의 발신 언어
@@ -269,6 +270,13 @@ function detectLanguageByScript(text) {
   return 'unknown';
 }
 
+// 내가 쓴 문장이 이미 보낼 언어인지 (글자 종류로 판정 — API 호출 전 사전 확인)
+// 라틴 문자 언어끼리는 글자로 구분할 수 없으므로, 보낼 언어가 영어일 때만 라틴 문장을 영어로 본다
+function isAlreadyInLang(text, lang) {
+  const script = detectLanguageByScript(text);
+  return script === lang || (script === 'latin' && lang === 'en');
+}
+
 // 컨텍스트 수집: 현재 메시지 주변의 최근 메시지 텍스트
 function getConversationContext(msgElement, maxMessages = 3) {
   const allMessages = document.querySelectorAll('[data-message-id], div[jsname="bgckF"], [role="row"] [dir="auto"]');
@@ -359,7 +367,8 @@ async function geminiTranslate(text, targetLang, sourceLang, apiKey, tone = 'nat
   const toneInst = getToneInstruction(tone);
   const contextInst = context ? `Previous messages for context:\n${context}\n\nNow translate this message:\n` : '';
   const prompt = `Translate the following text to ${targetName}. ${toneInst}Return ONLY the translated text, nothing else.\n\n${contextInst}${text}`;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // gemini-2.0-flash 는 2026-06-01 서비스 종료 → 공식 권장 경량 안정판으로 교체
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
 
   const response = await fetchWithRetry(() => fetch(url, {
     method: 'POST',
@@ -388,13 +397,16 @@ async function claudeTranslate(text, targetLang, sourceLang, apiKey, tone = 'nat
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-haiku-5-5',
       max_tokens: 1024,
+      // 짧은 번역에는 사고 과정이 필요 없음 (Haiku 5.5 는 기본 effort(medium)에서 끌 수 있음)
+      thinking: { type: 'disabled' },
       messages: [{ role: 'user', content: prompt }]
     })
   }));
   const data = await response.json();
-  const translated = data.content?.[0]?.text?.trim();
+  // 응답 첫 블록이 thinking 일 수 있으므로 text 블록을 찾아 읽는다
+  const translated = data.content?.find(b => b.type === 'text')?.text?.trim();
   if (!translated) throw new Error('Claude 응답 없음');
   return { translated, detectedLang: detectLangFromResult(text, translated, targetLang, sourceLang) };
 }
@@ -629,9 +641,12 @@ function attachToInputBox(inputBox) {
         return;
       }
       const outLang = getRoomOutLang(settings);
-      const { translated, detectedLang } = await googleTranslate(text, outLang, 'auto');
-      if (detectedLang !== outLang) {
-        replaceInputText(inputBox, translated);
+      // 이미 보낼 언어로 쓴 문장이면 API 호출 없이 그대로 전송
+      if (!isAlreadyInLang(text, outLang)) {
+        const { translated, detectedLang } = await googleTranslate(text, outLang, 'auto');
+        if (detectedLang !== outLang) {
+          replaceInputText(inputBox, translated);
+        }
       }
     } catch (err) {
       console.error('[GCT] 자동 번역 오류:', err);
@@ -732,7 +747,9 @@ async function translateIncomingMessage(msgElement, isOutgoing = false) {
     msgElement.appendChild(badge);
 
     // 상대 메시지 언어를 이 방의 발신 언어로 기억 (API 감지값 우선, 없으면 문자 기반 감지값)
-    if (!isOutgoing) rememberRoomLang(LANG_NAMES[detectedLang] ? detectedLang : preDetected, settings);
+    // 짧은 라틴 문장(ok, ty 등)은 언어 감지가 불안정해 방 언어 기억에서 제외
+    const tooShortLatin = preDetected === 'latin' && text.replace(/\s/g, '').length < ROOM_LANG_MIN_LATIN;
+    if (!isOutgoing && !tooShortLatin) rememberRoomLang(LANG_NAMES[detectedLang] ? detectedLang : preDetected, settings);
   } catch (err) {
     const msg = err.message || '';
     if (msg.includes('rate limit') || msg.includes('429')) {
