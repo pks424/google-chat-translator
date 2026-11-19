@@ -119,6 +119,17 @@ Okay, let me check
 
 ---
 
+## 배포용 빌드 (크롬 웹스토어 업로드)
+
+```
+npm run build
+```
+
+`dist/google-chat-translator-v{버전}.zip` 이 만들어집니다. 확장 실행에 필요한 파일만 담고,
+manifest·팝업·background 가 참조하는 파일이 빠지면 빌드가 실패합니다.
+
+---
+
 ## 업데이트 방법
 
 1. 새 버전의 파일로 폴더 내용 교체

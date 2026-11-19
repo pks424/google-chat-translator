@@ -23,7 +23,7 @@
 </head>
 <body>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: March 12, 2026</p>
+  <p class="updated">Last updated: November 19, 2026</p>
 
   <p>
     <strong>GChat Auto Translator</strong> ("the Extension") is a Chrome browser extension that
@@ -34,58 +34,93 @@
   <h2>1. Data We Collect</h2>
   <p>The Extension collects and processes the following data solely for the purpose of translation:</p>
   <ul>
-    <li><strong>Message text</strong> – Text content of Google Chat messages is sent to Google's
-    translation services to perform translation. Message text is never stored by the Extension.</li>
-    <li><strong>User preferences</strong> – Language settings (source and target language),
-    toggle preferences (auto-translate on/off, show outgoing translation on/off), and optionally
-    a Google Cloud Translation API key are stored locally in your browser using
-    <code>chrome.storage.local</code>. This data never leaves your device unless you explicitly
-    provide a Cloud API key for use with Google's official translation service.</li>
+    <li><strong>Message text</strong> – The text of Google Chat messages you receive (and the
+    messages you type, when outgoing translation is on) is sent to the translation service you
+    select in the settings (see Section 3). When you select an AI engine (Gemini, Claude or
+    ChatGPT), up to three earlier messages in the same conversation are also sent as context to
+    improve translation quality.</li>
+    <li><strong>User preferences</strong> – Language settings, toggle preferences, translation
+    engine and tone, your glossary, and any API keys you enter are stored locally in your browser
+    using <code>chrome.storage.local</code>. An API key is sent only to the service it belongs to,
+    as required to authenticate translation requests.</li>
+    <li><strong>Per-chat settings</strong> – For each chat room, the Extension may store the room
+    identifier (taken from the page address) together with a language code or an on/off flag in
+    <code>chrome.storage.local</code>, so that it can remember which language to use for that room
+    and whether translation is turned off there. No message text is stored for this purpose.</li>
+    <li><strong>Translation cache</strong> – To avoid translating the same text repeatedly, recent
+    message texts and their translations (up to 500 entries) are kept in
+    <code>chrome.storage.session</code>, an in-memory browser storage area that is cleared when
+    the browser is closed.</li>
   </ul>
 
   <h2>2. Data We Do NOT Collect</h2>
   <ul>
-    <li>We do not collect, store, or transmit any personal information to our own servers.</li>
+    <li>We do not collect, store, or transmit any personal information to our own servers.
+    The Extension has no server of its own.</li>
     <li>We do not track browsing history or activity beyond what is necessary to translate visible
     Google Chat messages.</li>
-    <li>We do not share any data with third parties other than Google's translation APIs
-    (see Section 3).</li>
+    <li>We do not share any data with third parties other than the translation services described
+    in Section 3.</li>
   </ul>
 
   <h2>3. Third-Party Services</h2>
-  <p>The Extension sends message text to one of the following Google translation services:</p>
+  <p>
+    Message text is sent only to the translation service you select in the Extension settings.
+    By default this is Google Translate (free endpoint).
+  </p>
   <ul>
     <li>
-      <strong>Google Cloud Translation API</strong> (optional, requires user-provided API key) –
-      Used when you supply your own Google Cloud API key in the Extension settings.
-      Subject to <a href="https://cloud.google.com/terms/cloud-privacy-notice" target="_blank">
+      <strong>Google Translate (free endpoint)</strong> – The default engine, used when no API key
+      is required or provided. This is an unofficial endpoint; usage is subject to Google's general
+      <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>.
+    </li>
+    <li>
+      <strong>Google Cloud Translation API</strong> (optional, requires your own API key) –
+      Subject to the <a href="https://cloud.google.com/terms/cloud-privacy-notice" target="_blank">
       Google Cloud Privacy Notice</a>.
     </li>
     <li>
-      <strong>Google Translate (free endpoint)</strong> – Used as a fallback when no API key is
-      provided. This is an unofficial endpoint; usage is subject to Google's general
-      <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>.
+      <strong>Google Gemini API</strong> (optional, requires your own API key) – Subject to the
+      <a href="https://ai.google.dev/gemini-api/terms" target="_blank">Gemini API Additional Terms</a>
+      and Google's <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>.
+    </li>
+    <li>
+      <strong>Anthropic Claude API</strong> (optional, requires your own API key) – Subject to
+      <a href="https://www.anthropic.com/legal/privacy" target="_blank">Anthropic's Privacy Policy</a>.
+    </li>
+    <li>
+      <strong>OpenAI API</strong> (optional, requires your own API key) – Subject to
+      <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI's Privacy Policy</a>.
     </li>
   </ul>
   <p>
-    Message text sent to Google's translation APIs is governed by Google's privacy policies
-    and terms of service. We encourage you to review those policies.
+    <strong>Fallback option</strong> – If you turn on "fall back to Google free translation on
+    failure" (off by default), text that your selected engine fails to translate is also sent to
+    Google Translate (free endpoint).
+  </p>
+  <p>
+    Text sent to these services is governed by each provider's privacy policy and terms of
+    service. We encourage you to review those policies.
   </p>
 
   <h2>4. Permissions Explained</h2>
   <ul>
-    <li><strong>storage</strong> – Saves your language preferences locally in the browser.</li>
+    <li><strong>storage</strong> – Saves your preferences, per-chat settings and the translation
+    cache in the browser.</li>
     <li><strong>host_permissions (chat.google.com, mail.google.com)</strong> – Required to read
     and modify Google Chat message content for translation.</li>
-    <li><strong>host_permissions (translate.googleapis.com, translation.googleapis.com)</strong> –
-    Required to send text to Google's translation services and receive translated results.</li>
+    <li><strong>host_permissions (translate.googleapis.com, translation.googleapis.com,
+    generativelanguage.googleapis.com, api.anthropic.com, api.openai.com)</strong> – Required to
+    send text to the translation service you select and receive translated results.</li>
   </ul>
 
   <h2>5. Data Retention</h2>
   <p>
-    Message text is processed in-memory only and is never stored. User preference settings are
-    stored locally in your browser and can be cleared at any time by removing the Extension or
-    clearing browser storage.
+    The Extension does not keep message text beyond the translation cache described in Section 1,
+    which is cleared when the browser is closed. Preferences and per-chat settings are stored
+    locally in your browser and can be cleared at any time by removing the Extension or clearing
+    browser storage. Data sent to a translation service is retained according to that provider's
+    policy.
   </p>
 
   <h2>6. Children's Privacy</h2>

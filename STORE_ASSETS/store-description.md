@@ -25,11 +25,20 @@ Incoming messages from others are automatically translated and displayed beneath
 **👁 Show My Sent Messages Translated**
 Optionally display a translation of your own sent messages (in the original language) so you can review what you wrote over time.
 
-**🔑 Google Cloud Translation API Support**
-Works out of the box with no API key needed (using the free Google Translate endpoint). For more reliable, high-volume usage, you can optionally enter your own Google Cloud Translation API key.
+**🔑 Choose Your Translation Engine**
+Works out of the box with no API key needed (using the free Google Translate endpoint). You can optionally use your own API key for Google Cloud Translation, Gemini, Claude, or ChatGPT for higher-quality, AI-based translation with a selectable tone (formal, casual, business, friendly).
 
-**⌨️ Keyboard Shortcut**
-Press **Alt+T** to manually translate the text in the input box without sending — useful for previewing translations.
+**🌍 Per-Chat Language**
+The extension remembers the language each person writes in, so your replies in that chat are automatically sent in their language.
+
+**📖 Glossary**
+Keep product names and technical terms untranslated, or define your own translations for them.
+
+**🛟 Fallback Option**
+Optionally fall back to Google's free translation when your selected AI engine fails (for example, when credits run out).
+
+**⌨️ Keyboard Shortcuts**
+Press **Alt+T** to manually translate the text in the input box without sending — useful for previewing translations. Assign a shortcut (suggested: **Alt+Shift+T**) at `chrome://extensions/shortcuts` to turn translation on or off for the current chat, or use the floating button.
 
 **💬 Supports Google Chat & Gmail's Built-in Chat**
 Works seamlessly on both `chat.google.com` and the Chat panel embedded in `mail.google.com`.
@@ -40,7 +49,7 @@ Works seamlessly on both `chat.google.com` and the Chat panel embedded in `mail.
 3. Start chatting — translation happens automatically!
 
 ### Privacy
-The extension sends message text to Google's translation services. No personal data is collected or stored by the extension itself. User preferences (language settings, API key) are saved locally in your browser only.
+The extension sends message text only to the translation service you select (Google Translate by default). It has no server of its own and does not collect personal data. Settings and API keys are saved locally in your browser, and a short-lived translation cache is cleared when the browser closes. See the privacy policy for details.
 
 ---
 
