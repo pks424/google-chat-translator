@@ -56,6 +56,7 @@ google-chat-translator/
 ├── manifest.json
 ├── content.js
 ├── background.js
+├── shared.js
 ├── popup.html
 ├── popup.js
 ├── styles.css
@@ -152,11 +153,19 @@ A. Google 무료 번역은 API 키 없이 사용 가능합니다. AI 엔진(Gemi
 - 채팅방별 발신 언어는 채팅방 주소와 언어 코드만 로컬에 저장합니다 (메시지 내용 저장 없음)
 - 별도 서버나 외부 서비스로 데이터를 수집하거나 저장하지 않습니다
 - API 키를 포함한 모든 설정은 Chrome 로컬 저장소(`chrome.storage.local`)에만 저장됩니다
+- 번역 결과 캐시는 브라우저 세션 저장소(`chrome.storage.session`)에만 두며 브라우저를 닫으면 삭제됩니다
 - [개인정보처리방침](https://pks424.github.io/google-chat-translator/privacy-policy.html)
 
 ---
 
 ## 변경 이력
+
+### v1.4.0
+- 구조: 번역 API 호출·캐시·용어 사전·대체 번역을 background(서비스 워커)로 이전 — content 는 화면 처리만 담당
+  - 번역 캐시를 탭·프레임끼리 공유 (`chrome.storage.session`, 브라우저를 닫으면 삭제)
+  - 엔진 속도 제한 대기(Gemini 4초, 그 외 AI 1초)를 탭 공통으로 적용, 발신 번역은 대기하지 않음
+  - API 호출이 채팅 페이지의 보안 정책(CSP)과 무관해짐
+- 공용 상수는 `shared.js` 로 분리
 
 ### v1.3.2
 - 보안: AI 번역 프롬프트 인젝션 방어 — 번역 지시는 system 자리로 분리하고 메시지는 `<text>` 태그로 감싸
